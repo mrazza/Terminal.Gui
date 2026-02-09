@@ -163,6 +163,7 @@ public abstract class OutputBase
             SetCursorPositionImpl (s.ScreenPosition.X, s.ScreenPosition.Y);
             Write (new StringBuilder (s.SixelData));
         }
+        _sixels.Clear ();
     }
 
     /// <inheritdoc cref="IOutput.GetLastOutput" />
