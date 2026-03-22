@@ -26,7 +26,6 @@ public class SyncrhonizationContextTests
     [InlineData (DriverRegistry.Names.ANSI)]
     [InlineData (DriverRegistry.Names.WINDOWS)]
     [InlineData (DriverRegistry.Names.DOTNET)]
-    [InlineData (DriverRegistry.Names.UNIX)]
     public void SynchronizationContext_Post (string driverName = null)
     {
         lock (_lockPost)
@@ -45,23 +44,21 @@ public class SyncrhonizationContextTests
                           }
 
                           // non blocking
-                          context.Post (
-                                        delegate
+                          context.Post (delegate
                                         {
                                             success = true;
 
                                             // then tell the application to quit
                                             Application.Invoke (() => Application.RequestStop ());
                                         },
-                                        null
-                                       );
+                                        null);
 
                           if (Application.TopRunnable is { IsRunning: true })
                           {
                               Assert.False (success);
                           }
-                      }
-                     );
+                      },
+                      TestContext.Current.CancellationToken);
 
             // blocks here until the RequestStop is processed at the end of the test
             Application.Run<Runnable> ();
@@ -79,25 +76,22 @@ public class SyncrhonizationContextTests
 
         var success = false;
 
-        Task.Run (
-                  () =>
+        Task.Run (() =>
                   {
                       Thread.Sleep (500);
 
                       // blocking
-                      context.Send (
-                                    delegate
+                      context.Send (delegate
                                     {
                                         success = true;
 
                                         // then tell the application to quit
                                         Application.Invoke (() => Application.RequestStop ());
                                     },
-                                    null
-                                   );
+                                    null);
                       Assert.True (success);
-                  }
-                 );
+                  },
+                  TestContext.Current.CancellationToken);
 
         // blocks here until the RequestStop is processed at the end of the test
         Application.Run<Runnable> ();

@@ -4,10 +4,9 @@ using System.Diagnostics;
 
 namespace Terminal.Gui.ViewBase;
 
-#region API Docs
 
 /// <summary>
-///     View is the base class all visible elements. View can render itself and
+///     View is the base class for all visible elements. View can render itself and
 ///     contains zero or more nested views, called SubViews. View provides basic functionality for layout, arrangement, and
 ///     drawing. In addition, View provides keyboard and mouse event handling.
 ///     <para>
@@ -19,9 +18,32 @@ namespace Terminal.Gui.ViewBase;
 ///         for more.
 ///     </para>
 /// </summary>
-
-#endregion API Docs
-
+/// <remarks>
+///     <para>Default key bindings:</para>
+///     <list type="table">
+///         <listheader>
+///             <term>Key</term> <description>Action</description>
+///         </listheader>
+///         <item>
+///             <term>Space</term> <description>Activates the view (<see cref="Command.Activate"/>).</description>
+///         </item>
+///         <item>
+///             <term>Enter</term> <description>Accepts the view (<see cref="Command.Accept"/>).</description>
+///         </item>
+///     </list>
+///     <para>Default mouse bindings:</para>
+///     <list type="table">
+///         <listheader>
+///             <term>Mouse Event</term> <description>Action</description>
+///         </listheader>
+///         <item>
+///             <term>Left Button Released</term> <description>Activates the view (<see cref="Command.Activate"/>).</description>
+///         </item>
+///         <item>
+///             <term>Ctrl+Left Button Released</term> <description>Opens the context menu (<see cref="Command.Context"/>).</description>
+///         </item>
+///     </list>
+/// </remarks>
 public partial class View : IDisposable, ISupportInitializeNotification
 {
     private bool _disposedValue;
@@ -51,7 +73,7 @@ public partial class View : IDisposable, ISupportInitializeNotification
 
     /// <summary>Pretty prints the View</summary>
     /// <returns></returns>
-    public override string ToString () => $"{GetType ().Name}({Id}){Frame}";
+    public override string ToString () => $"{GetType ().Name}({this.ToIdentifyingString ()}){Frame}";
 
     /// <summary>
     ///     Pretty prints the View with more debug information.
@@ -59,9 +81,9 @@ public partial class View : IDisposable, ISupportInitializeNotification
     /// <returns></returns>
     public virtual string ToDebugString ()
     {
-        string identifyingText = !string.IsNullOrEmpty (Id) ? $"{Id}" : $"{this.ToIdentifyingString ()}";
+        string identifyingText = this.ToIdentifyingString ();
 
-        return $"{GetType ().Name}({identifyingText}) SuperView={(SuperView is { } ? SuperView.ToDebugString () : "null")}";
+        return $"{GetType ().Name}({identifyingText}) SuperView={(SuperView is { } ? SuperView.ToIdentifyingString () : "null")}";
     }
 
     /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
@@ -380,8 +402,8 @@ public partial class View : IDisposable, ISupportInitializeNotification
                     App.Mouse.UngrabMouse ();
                 }
 
-                // BUGBUG: Ideally we'd reset _previouslyFocused to the first focusable subview
-                _previouslyFocused = SubViews.FirstOrDefault (v => v.CanFocus);
+                // BUGBUG: Ideally we'd reset PreviouslyFocused to the first focusable subview
+                PreviouslyFocused = SubViews.FirstOrDefault (v => v.CanFocus);
 
                 if (HasFocus)
                 {

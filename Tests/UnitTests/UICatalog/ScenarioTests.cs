@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using UICatalog;
-using Xunit.Abstractions;
 using Timeout = System.Threading.Timeout;
 
 namespace UnitTests.UICatalog;
@@ -62,7 +61,7 @@ public class ScenarioTests : TestsAllViews
         var initialized = false;
         var shutdownGracefully = false;
         var iterationCount = 0;
-        Key quitKey = Application.QuitKey;
+        Key quitKey = Application.GetDefaultKey (Command.Quit);
 
         // Track the current application instance for the modern model
         IApplication? currentApp = null;
@@ -193,7 +192,7 @@ public class ScenarioTests : TestsAllViews
             if (currentApp?.Initialized == true)
             {
                 // Press QuitKey
-                quitKey = currentApp.Keyboard.QuitKey;
+                quitKey = Application.GetDefaultKey (Command.Quit);
                 _output.WriteLine ($"Attempting to quit with {quitKey} after {iterationCount} iterations.");
 
                 try
