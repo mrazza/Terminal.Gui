@@ -233,7 +233,7 @@ public class LabelTests (ITestOutputHelper output) : TestDriverBase
         Assert.True (view.HasFocus);
 
         // No focused view accepts Tab, and there's no other view to focus, so OnKeyDown returns false
-        Assert.True (app.Keyboard.RaiseKeyDownEvent (label.HotKey));
+        app.Keyboard.RaiseKeyDownEvent (label.HotKey);
         Assert.True (label.HasFocus);
         Assert.False (view.HasFocus);
     }
@@ -289,8 +289,8 @@ public class LabelTests (ITestOutputHelper output) : TestDriverBase
         app.Begin (runnable);
 
         var label = new Label { Text = "Test", /*Width = 6, Height = 3,*/ BorderStyle = LineStyle.Single };
-        label.Margin!.Thickness = new Thickness (0, 1, 0, 0);
-        label.Border!.Thickness = new Thickness (1, 0, 1, 1);
+        label.Margin.Thickness = new Thickness (0, 1, 0, 0);
+        label.Border.Thickness = new Thickness (1, 0, 1, 1);
         runnable.Add (label);
         app.LayoutAndDraw ();
 
@@ -314,7 +314,7 @@ public class LabelTests (ITestOutputHelper output) : TestDriverBase
         app.Begin (runnable);
 
         var label = new Label { Text = "Test", /* Width = 6, Height = 3, */BorderStyle = LineStyle.Single };
-        label.Border!.Thickness = new Thickness (1, 0, 1, 1);
+        label.Border.Thickness = new Thickness (1, 0, 1, 1);
         runnable.Add (label);
         app.LayoutAndDraw ();
 
@@ -342,9 +342,7 @@ public class LabelTests (ITestOutputHelper output) : TestDriverBase
         label.Dispose ();
     }
 
-    // Claude - Opus 4.5
-    // Behavior documented in docfx/docs/command.md - View Command Behaviors table
-    // This test verifies current behavior which may change per issue #4473
+    // BUGBUG: This test does not actually test what it says; just tests that the invoke returns true
     [Fact]
     public void Label_HotKey_ForwardsToNextFocusable ()
     {

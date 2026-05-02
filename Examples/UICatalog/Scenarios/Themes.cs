@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using System.Collections.ObjectModel;
+// ReSharper disable AccessToDisposedClosure
 
 namespace UICatalog.Scenarios;
 
@@ -23,7 +24,7 @@ public sealed class Themes : Scenario
         _app = app;
 
         // Setup - Create a top-level application window and configure it.
-        using Window appWindow = new ();
+        using Runnable appWindow = new ();
         appWindow.Title = GetQuitKeyAndName ();
         appWindow.BorderStyle = LineStyle.None;
 
@@ -38,8 +39,18 @@ public sealed class Themes : Scenario
             Labels = options,
             Value = ThemeManager.GetThemeNames ().IndexOf (ThemeManager.Theme)
         };
-        themeOptionSelector.Border!.Thickness = new Thickness (0, 1, 0, 0);
-        themeOptionSelector.Margin!.Thickness = new Thickness (0, 0, 1, 0);
+        themeOptionSelector.Border.Thickness = new Thickness (0, 1, 0, 0);
+        themeOptionSelector.Margin.Thickness = new Thickness (0, 0, 1, 0);
+
+        AttributeViewer defaultAttributeView = new ()
+        {
+            Title = "Default Attribute",
+            BorderStyle = LineStyle.Rounded,
+            Y = Pos.Bottom (themeOptionSelector),
+            Width = Dim.Width (themeOptionSelector),
+            Height = Dim.Auto ()
+        };
+        defaultAttributeView.Border.Thickness = new Thickness (0, 1, 0, 0);
 
         themeOptionSelector.ValueChanged += (sender, args) =>
                                             {
@@ -73,8 +84,8 @@ public sealed class Themes : Scenario
             Height = Dim.Fill (),
             Source = new ListWrapper<string> (new ObservableCollection<string> (viewClasses.Keys))
         };
-        viewListView.Border!.Thickness = new Thickness (0, 1, 0, 0);
-        viewListView.Margin!.Thickness = new Thickness (0, 0, 1, 0);
+        viewListView.Border.Thickness = new Thickness (0, 1, 0, 0);
+        viewListView.Margin.Thickness = new Thickness (0, 0, 1, 0);
 
         viewListView.ViewportSettings |= ViewportSettingsFlags.HasVerticalScrollBar;
 
@@ -90,7 +101,7 @@ public sealed class Themes : Scenario
             Height = Dim.Fill (),
             TabStop = TabBehavior.TabStop
         };
-        viewFrame.Border!.Thickness = new Thickness (0, 1, 0, 0);
+        viewFrame.Border.Thickness = new Thickness (0, 1, 0, 0);
 
         viewListView.ValueChanged += (_, args) =>
                                      {
@@ -118,7 +129,7 @@ public sealed class Themes : Scenario
                                          viewPropertiesEditor.ViewToEdit = _view;
                                      };
 
-        appWindow.Add (themeOptionSelector, themeViewer, allViewsCheckBox, viewListView, viewPropertiesEditor, viewFrame);
+        appWindow.Add (themeOptionSelector, defaultAttributeView, themeViewer, allViewsCheckBox, viewListView, viewPropertiesEditor, viewFrame);
 
         viewListView.SelectedItem = 0;
 
@@ -250,10 +261,9 @@ public sealed class Themes : Scenario
         Type [] constraints = genericParam.GetGenericParameterConstraints ();
 
         // Find the most derived base class constraint (ignore interfaces)
-        Type? baseConstraint = constraints
-            .Where (c => c.IsClass)
-            .OrderByDescending (c => c.GetInterfaces ().Length) // rough heuristic for "most derived"
-            .FirstOrDefault ();
+        Type? baseConstraint = constraints.Where (c => c.IsClass)
+                                          .OrderByDescending (c => c.GetInterfaces ().Length) // rough heuristic for "most derived"
+                                          .FirstOrDefault ();
 
         if (baseConstraint != null)
         {

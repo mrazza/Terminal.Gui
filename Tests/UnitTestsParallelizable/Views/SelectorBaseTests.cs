@@ -417,6 +417,31 @@ public class SelectorBaseTests
         Assert.Equal (0, newYDiff); // Both should be at Y=0 now
     }
 
+    // Copilot
+    [Fact]
+    public void Horizontal_Labels_SetAfterConstruction_SelectorWidthAccommodatesAllCheckBoxes ()
+    {
+        // Arrange: create selector with horizontal orientation, no labels yet
+        OptionSelector selector = new () { Orientation = Orientation.Horizontal };
+
+        // Act: set labels/values after construction (simulates reactive-binding scenario)
+        selector.Labels = ["IMDb (Recommended)", "TMDb"];
+        selector.Values = [0, 1];
+        selector.Layout ();
+
+        // Assert: selector width must be wide enough to fully contain every checkbox
+        CheckBox [] checkBoxes = selector.SubViews.OfType<CheckBox> ().ToArray ();
+        Assert.Equal (2, checkBoxes.Length);
+
+        foreach (CheckBox cb in checkBoxes)
+        {
+            Assert.True (
+                          cb.Frame.X + cb.Frame.Width <= selector.Frame.Width,
+                          $"CheckBox '{cb.Title}' right edge ({cb.Frame.X + cb.Frame.Width}) exceeds selector width ({selector.Frame.Width})"
+                         );
+        }
+    }
+
     #endregion
 
     #region HorizontalSpace Tests
@@ -440,12 +465,12 @@ public class SelectorBaseTests
         CheckBox [] checkBoxes = selector.SubViews.OfType<CheckBox> ().ToArray ();
 
         // HorizontalSpace is applied via Margin.Thickness.Right
-        int spacing2 = checkBoxes [0].Margin!.Thickness.Right;
+        int spacing2 = checkBoxes [0].Margin.Thickness.Right;
 
         selector.HorizontalSpace = 5;
         selector.Layout ();
 
-        int spacing5 = checkBoxes [0].Margin!.Thickness.Right;
+        int spacing5 = checkBoxes [0].Margin.Thickness.Right;
         Assert.True (spacing5 > spacing2);
         Assert.Equal (2, spacing2);
         Assert.Equal (5, spacing5);
@@ -571,6 +596,61 @@ public class SelectorBaseTests
         Assert.Equal ("Test Option", checkBox.Id);
         Assert.Equal (42, selector.GetCheckBoxValue (checkBox));
         Assert.True (checkBox.CanFocus);
+    }
+
+    [Fact]
+    public void CreateSubViews_ResetsValue_WhenCurrentValueNotInNewValues ()
+    {
+        OptionSelector selector = new ();
+
+        selector.Labels = ["Option1", "Option2"];
+        selector.Values = [10, 20];
+
+        // Verify initial value is set to first value (10)
+        Assert.Equal (10, selector.Value);
+
+        // Change to new labels/values where current value (10) is not present
+        selector.Labels = ["New1", "New2"];
+        selector.Values = [30, 40];
+
+        // Value should reset to first value (30)
+        Assert.Equal (30, selector.Value);
+    }
+
+    [Fact]
+    public void Setting_TabBehavior_AfterSubViewsAreCreated_DoesNotLoseCheckedState ()
+    {
+        OptionSelector selector = new ()
+        {
+            Labels = ["Option1", "Option2"], Values = [10, 20], Orientation = Orientation.Vertical, TabBehavior = TabBehavior.NoStop
+        };
+
+        List<CheckBox> checkBoxes = [.. selector.SubViews.OfType<CheckBox> ()];
+
+        Assert.Equal (2, checkBoxes.Count);
+        Assert.Equal (CheckState.Checked, checkBoxes [0].Value);
+        Assert.Equal (CheckState.UnChecked, checkBoxes [1].Value);
+        Assert.Equal (10, selector.Value);
+        Assert.Equal (TabBehavior.NoStop, selector.TabBehavior);
+    }
+
+    [Fact]
+    public void Setting_TabBehavior_AfterSubViewsAreCreated_DoesNotLoseCheckedState_With_Enum ()
+    {
+        OptionSelector<Side> selector = new ()
+        {
+            Orientation = Orientation.Vertical, TabBehavior = TabBehavior.NoStop
+        };
+
+        List<CheckBox> checkBoxes = [.. selector.SubViews.OfType<CheckBox> ()];
+
+        Assert.Equal (4, checkBoxes.Count);
+        Assert.Equal (CheckState.Checked, checkBoxes [0].Value);
+        Assert.Equal (CheckState.UnChecked, checkBoxes [1].Value);
+        Assert.Equal (CheckState.UnChecked, checkBoxes [2].Value);
+        Assert.Equal (CheckState.UnChecked, checkBoxes [3].Value);
+        Assert.Equal (Side.Left, selector.Value);
+        Assert.Equal (TabBehavior.NoStop, selector.TabBehavior);
     }
 
     #endregion

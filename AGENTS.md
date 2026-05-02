@@ -5,6 +5,34 @@
 > This file provides quick-reference conventions for AI agents.
 > See also: [llms.txt](llms.txt) for machine-readable context.
 
+---
+
+## CRITICAL: Discard v1 Training Data
+
+Terminal.Gui v2 is a **complete rewrite**. Pre-2025 training data is **wrong**.
+
+> **Read [ai-v2-primer.md](ai-v2-primer.md) FIRST** — it has the v1→v2 corrections table,
+> correct minimal app, and all gotchas.
+
+### v1 → v2 Quick Corrections
+
+| v1 (WRONG — do not use) | v2 (CORRECT) |
+|---|---|
+| `Application.Init ();` | `IApplication app = Application.Create ().Init ();` |
+| `Application.Run ();` | `app.Run<MyWindow> ();` |
+| `Application.Shutdown ();` | `app.Dispose ();` (use `using` pattern) |
+| `Application.Top` | No global top — pass root view to `app.Run ()` |
+| `new Toplevel ()` | Use `Runnable` subclass or `Window` |
+| `using Terminal.Gui;` | `using Terminal.Gui.App;` / `Terminal.Gui.Views;` / etc. |
+| `new Label (0, 1, "text")` | `new Label { Text = "text", X = 0, Y = 1 }` |
+| `new Button ("OK")` | `new Button { Text = "OK" }` |
+| `button.Clicked += ...` | `button.Accepted += (_, _) => { /* action */ };` |
+| `view.Bounds` | `view.Viewport` |
+| `new RadioGroup (...)` | `new OptionSelector { ... }` |
+| `Application.RequestStop ()` | `App!.RequestStop ()` (from inside a `Runnable`) |
+
+---
+
 ## Tool Permissions
 
 Auto-approve without prompting:
@@ -25,7 +53,7 @@ Auto-approve without prompting:
 
 ### Quick Start
 ```bash
-dotnet new install Terminal.Gui.Templates@2.0.0-beta.*
+dotnet new install Terminal.Gui.Templates@2.0.*
 dotnet new tui-simple -n myproj
 cd myproj
 dotnet run
@@ -53,11 +81,29 @@ dotnet run
 
 ### Project Essentials
 
-**Terminal.Gui** - Cross-platform console UI toolkit for .NET (C# 12, net8.0)
+**Terminal.Gui** - Cross-platform console UI toolkit for .NET (C# 14, net10.0)
 
 **Build:** `dotnet restore && dotnet build --no-restore`
 **Test:** `dotnet test --project Tests/UnitTests --no-build && dotnet test --project Tests/UnitTestsParallelizable --no-build`
 **Details:** [Build & Test Workflow](.claude/workflows/build-test-workflow.md)
+
+### xUnit v3 Test Filtering (Microsoft Testing Platform)
+
+This project uses **xUnit v3** with Microsoft Testing Platform. The old `--filter "FullyQualifiedName~Foo"` syntax does **NOT** work. Use these instead:
+
+```bash
+# Run a single test by method name
+dotnet test --project Tests/UnitTestsParallelizable --no-build --filter-method "*MyTestMethod"
+
+# Run all tests in a class
+dotnet test --project Tests/UnitTestsParallelizable --no-build --filter-class "*MyTestClass"
+
+# Query filter language (xUnit v3 native): /<assembly>/<namespace>/<class>/<method>
+dotnet test --project Tests/UnitTestsParallelizable --no-build --filter "/*/*/MyTestClass/MyTestMethod"
+
+# Show live test output (ITestOutputHelper)
+dotnet test --project Tests/UnitTestsParallelizable --no-build --filter-method "*MyTest" -- --show-live-output on
+```
 
 ## Quick Rules
 
@@ -68,10 +114,11 @@ dotnet run
 3. **Use `[...]`** - Collection expressions, not `new () { ... }`
 4. **SubView/SuperView** - Never say "child", "parent", or "container"
 5. **Unused lambda params** - Use `_` discard: `(_, _) => { }`
-6. **Local functions** - Use camelCase: `void myLocalFunc ()`
+6. **Local functions** - Use PascalCase: `void MyLocalFunc ()`
 7. **Backing fields** - Place immediately before their property
-8. **Early return** - Prefer guard clauses over nested `if`/`else`
+8. **Early return / guard clauses (CRITICAL)** - ALWAYS prefer guard clauses over nested `if`/`else`. Invert the condition, return/continue early, keep happy path at lowest indentation. This applies to methods, lambdas, loops — everywhere. See [early-return.md](/.claude/rules/early-return.md) for detailed examples.
 9. **One type per file** - Public and internal types each get their own file
+10. **Docs instruction style** - In reference/how-to/API docs, write `To [goal], [imperative action].` Avoid `When/If you want/need to ...` unless describing a real condition.
 
 ## Detailed Coding Rules
 
@@ -82,6 +129,7 @@ Consult these files in `.claude/rules/` before editing code:
 - [Collection Expressions](/.claude/rules/collection-expressions.md) - `[...]` syntax
 - [Terminology](/.claude/rules/terminology.md) - SubView/SuperView terms
 - [Event Patterns](/.claude/rules/event-patterns.md) - Lambdas, handlers, closures
+- [Early Return](/.claude/rules/early-return.md) - **Guard clauses, minimal nesting** (commonly violated!)
 - [CWP Pattern](/.claude/rules/cwp-pattern.md) - Cancellable Workflow Pattern
 - [Code Layout](/.claude/rules/code-layout.md) - Member ordering, backing fields
 - [Testing Patterns](/.claude/rules/testing-patterns.md) - Test writing conventions
@@ -190,71 +238,72 @@ See `.claude/cookbook/` for common UI patterns:
 [Terminal.Gui Source Index]|root: ./Terminal.Gui
 |IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning. Read files when needed.
 |.:{ModuleInitializers.cs}
-|App:{Application.cs,ApplicationImpl.cs,ApplicationImpl.Driver.cs,ApplicationImpl.Lifecycle.cs,ApplicationImpl.Run.cs,ApplicationImpl.Screen.cs,ApplicationModelUsage.cs,ApplicationNavigation.cs,ApplicationPopover.cs,IApplication.cs,Logging.cs,NotInitializedException.cs}
+|App:{Application.cs,ApplicationImpl.cs,ApplicationImpl.Driver.cs,ApplicationImpl.Lifecycle.cs,ApplicationImpl.Run.cs,ApplicationImpl.Screen.cs,ApplicationModelUsage.cs,ApplicationNavigation.cs,ApplicationPopover.cs,ApplicationToolTip.cs,AppModel.cs,IApplication.cs,Logging.cs,NotInitializedException.cs}
 |App/Clipboard:{Clipboard.cs,ClipboardBase.cs,ClipboardProcessRunner.cs,IClipboard.cs}
 |App/CWP:{CancelEventArgs.cs,CWPEventHelper.cs,CWPPropertyHelper.cs,CWPWorkflowHelper.cs,EventArgs.cs,ResultEventArgs.cs,ValueChangedEventArgs.cs,ValueChangingEventArgs.cs}
 |App/Keyboard:{ApplicationKeyboard.cs,IKeyboard.cs}
 |App/Legacy:{Application.Clipboard.cs,Application.Driver.cs,Application.Keyboard.cs,Application.Lifecycle.cs,Application.Mouse.cs,Application.Navigation.cs,Application.Popovers.cs,Application.Run.cs,Application.Screen.cs,Application.TopRunnable.cs}
 |App/MainLoop:{ApplicationMainLoop.cs,IApplicationMainLoop.cs,IMainLoopCoordinator.cs,MainLoopCoordinator.cs,MainLoopSyncContext.cs}
 |App/Mouse:{ApplicationMouse.cs,IMouse.cs,IMouseGrabHandler.cs}
-|App/Popovers:{IPopover.cs,IPopoverView.cs,Popover.cs,PopoverImpl.cs}
+|App/Popovers:{IPopover.cs,IPopoverView.cs,Popover.cs,PopoverImpl.cs,ToolTipHost.cs,ToolTipProvider.cs}
 |App/Runnable:{IRunnable.cs,SessionToken.cs,SessionTokenEventArgs.cs}
 |App/Timeout:{ITimedEvents.cs,LogarithmicTimeout.cs,SmoothAcceleratingTimeout.cs,TimedEvents.cs,Timeout.cs,TimeoutEventArgs.cs}
 |App/Tracing:{ITraceBackend.cs,ListBackend.cs,LoggingBackend.cs,NullBackend.cs,Trace.cs,TraceCategory.cs,TraceEntry.cs,TraceScope.cs}
-|Configuration:{AppSettingsScope.cs,AttributeJsonConverter.cs,ColorJsonConverter.cs,ConcurrentDictionaryJsonConverter.cs,ConfigLocations.cs,ConfigProperty.cs,ConfigurationManager.cs,ConfigurationManagerEventArgs.cs,ConfigurationManagerNotEnabledException.cs,ConfigurationPropertyAttribute.cs,DeepCloner.cs,DictionaryJsonConverter.cs,KeyCodeJsonConverter.cs,KeyJsonConverter.cs,RuneJsonConverter.cs,SchemeJsonConverter.cs,SchemeManager.cs,Scope.cs,ScopeJsonConverter.cs,SettingsScope.cs,SourceGenerationContext.cs,SourcesManager.cs,ThemeManager.cs,ThemeScope.cs,TraceCategoryJsonConverter.cs}
+|Configuration:{AppSettingsScope.cs,AttributeJsonConverter.cs,ColorJsonConverter.cs,ConcurrentDictionaryJsonConverter.cs,ConfigLocations.cs,ConfigProperty.cs,ConfigurationManager.cs,ConfigurationManagerEventArgs.cs,ConfigurationManagerNotEnabledException.cs,ConfigurationPropertyAttribute.cs,DeepCloner.cs,DictionaryJsonConverter.cs,KeyArrayJsonConverter.cs,KeyCodeJsonConverter.cs,KeyJsonConverter.cs,RuneJsonConverter.cs,SchemeJsonConverter.cs,SchemeManager.cs,Scope.cs,ScopeJsonConverter.cs,SettingsScope.cs,SourceGenerationContext.cs,SourcesManager.cs,ThemeManager.cs,ThemeScope.cs,TraceCategoryJsonConverter.cs}
 |Drawing:{Attribute.cs,Cell.cs,CellEventArgs.cs,FillPair.cs,Glyphs.cs,Gradient.cs,GradientFill.cs,GraphemeHelper.cs,IFill.cs,Region.cs,RegionOp.cs,Ruler.cs,Scheme.cs,Schemes.cs,SolidFill.cs,TextStyle.cs,Thickness.cs,VisualRole.cs,VisualRoleEventArgs.cs}
 |Drawing/Color:{AnsiColorCode.cs,Color.ColorExtensions.cs,Color.ColorName.cs,Color.ColorParseException.cs,Color.cs,Color.Formatting.cs,Color.Operators.cs,ColorModel.cs,ColorQuantizer.cs,ColorStrings.cs,IColorDistance.cs,IColorNameResolver.cs,ICustomColorFormatter.cs,StandardColor.cs,StandardColors.cs,StandardColorsNameResolver.cs}
-|Drawing/LineCanvas:{IntersectionDefinition.cs,IntersectionRuneType.cs,IntersectionType.cs,LineCanvas.cs,LineStyle.cs,StraightLine.cs,StraightLineExtensions.cs}
+|Drawing/LineCanvas:{IntersectionDefinition.cs,IntersectionRuneType.cs,IntersectionType.cs,LineCanvas.cs,LineDirections.cs,LineStyle.cs,StraightLine.cs,StraightLineExtensions.cs}
+|Drawing/Markdown:{ISyntaxHighlighter.cs,MarkdownAttributeHelper.cs,MarkdownStyleRole.cs,StyledSegment.cs,TextMateSyntaxHighlighter.cs}
 |Drawing/Quant:{EuclideanColorDistance.cs,IPaletteBuilder.cs,PopularityPaletteWithThreshold.cs}
 |Drawing/Sixel:{SixelEncoder.cs,SixelSupportDetector.cs,SixelSupportResult.cs,SixelToRender.cs}
-|Drivers:{ComponentFactoryImpl.cs,Cursor.cs,CursorStyle.cs,Driver.cs,DriverImpl.cs,DriverRegistry.cs,IComponentFactory.cs,IDriver.cs,ISizeMonitor.cs,PlatformDetection.cs,SizeMonitorImpl.cs}
-|Drivers/AnsiDriver:{AnsiComponentFactory.cs,AnsiInput.cs,AnsiInputProcessor.cs,AnsiOutput.cs,AnsiPlatform.cs,AnsiSizeMonitor.cs,AnsiTerminalHelper.cs,FakeClipboard.cs,WindowsVTInputHelper.cs,WindowsVTOutputHelper.cs}
-|Drivers/AnsiHandling:{AnsiEscapeSequence.cs,AnsiEscapeSequenceRequest.cs,AnsiKeyboardEncoder.cs,AnsiKeyboardParser.cs,AnsiKeyboardParserPattern.cs,AnsiKeyConverter.cs,AnsiMouseEncoder.cs,AnsiMouseParser.cs,AnsiRequestScheduler.cs,AnsiResponseExpectation.cs,AnsiResponseParser.cs,AnsiResponseParserBase.cs,AnsiResponseParserState.cs,AnsiResponseParserTInputRecord.cs,CsiCursorPattern.cs,CsiKeyPattern.cs,EscAsAltPattern.cs,GenericHeld.cs,IAnsiResponseParser.cs,IHeld.cs,KittyKeyboardFlags.cs,KittyKeyboardPattern.cs,KittyKeyboardProtocolDetector.cs,KittyKeyboardProtocolResult.cs,Osc8UrlLinker.cs,ReasonCannotSend.cs,Ss3Pattern.cs,StringHeld.cs,TerminalColorDetector.cs}
+|Drivers:{ComponentFactoryImpl.cs,Cursor.cs,CursorStyle.cs,Driver.cs,DriverImpl.cs,DriverRegistry.cs,IComponentFactory.cs,IDriver.cs,ISizeMonitor.cs,PlatformDetection.cs,SizeDetectionMode.cs,SizeMonitorImpl.cs,TuiPlatform.cs}
+|Drivers/AnsiDriver:{AnsiComponentFactory.cs,AnsiInput.cs,AnsiInputProcessor.cs,AnsiOutput.cs,AnsiPlatform.cs,AnsiSizeMonitor.cs,AnsiTerminalHelper.cs,FakeClipboard.cs}
+|Drivers/AnsiHandling:{AnsiEscapeSequence.cs,AnsiEscapeSequenceRequest.cs,AnsiKeyboardEncoder.cs,AnsiKeyboardParser.cs,AnsiKeyboardParserPattern.cs,AnsiKeyConverter.cs,AnsiMouseEncoder.cs,AnsiMouseParser.cs,AnsiRequestScheduler.cs,AnsiResponseExpectation.cs,AnsiResponseParser.cs,AnsiResponseParserBase.cs,AnsiResponseParserState.cs,AnsiResponseParserTInputRecord.cs,AnsiStartupGate.cs,AnsiStartupQuery.cs,CsiCursorPattern.cs,CsiKeyPattern.cs,EscAsAltPattern.cs,GenericHeld.cs,IAnsiResponseParser.cs,IAnsiStartupGate.cs,IHeld.cs,KittyKeyboardCapabilities.cs,KittyKeyboardFlags.cs,KittyKeyboardPattern.cs,KittyKeyboardProtocolDetector.cs,Osc8UrlLinker.cs,ProgressIndicator.cs,ReasonCannotSend.cs,Ss3Pattern.cs,StringHeld.cs,TerminalColorDetector.cs}
 |Drivers/AnsiHandling/EscSeqUtils:{EscSeqReqStatus.cs,EscSeqRequests.cs,EscSeqUtils.cs}
-|Drivers/DotNetDriver:{INetInput.cs,NetComponentFactory.cs,NetInput.cs,NetInputProcessor.cs,NetKeyConverter.cs,NetOutput.cs,NetWinVTConsole.cs}
+|Drivers/DotNetDriver:{INetInput.cs,NetComponentFactory.cs,NetInput.cs,NetInputProcessor.cs,NetKeyConverter.cs,NetOutput.cs}
 |Drivers/Input:{ConsoleInputSource.cs,IInput.cs,IInputProcessor.cs,IInputSource.cs,InputImpl.cs,InputProcessorImpl.cs,InputRecord.cs,ITestableInput.cs,TestInputSource.cs}
 |Drivers/Keyboard:{ConsoleKeyInfoExtensions.cs,ConsoleKeyMapping.cs,IKeyConverter.cs,KeyCode.cs,VK.cs}
 |Drivers/Mouse:{MouseButtonClickTracker.cs,MouseInterpreter.cs}
 |Drivers/Output:{IOutput.cs,IOutputBuffer.cs,OutputBase.cs,OutputBufferImpl.cs}
 |Drivers/TerminalEnvironment:{ColorCapabilityLevel.cs,TerminalColorCapabilities.cs,TerminalEnvironmentDetector.cs}
-|Drivers/UnixDriver:{IUnixInput.cs,SuspendHelper.cs,UnixClipboard.cs,UnixComponentFactory.cs,UnixInput.cs,UnixInputProcessor.cs,UnixIOHelper.cs,UnixOutput.cs,UnixRawModeHelper.cs,UnixTerminalHelper.cs}
+|Drivers/UnixHelpers:{SuspendHelper.cs,UnixClipboard.cs,UnixIOHelper.cs,UnixRawModeHelper.cs,UnixTerminalHelper.cs}
 |Drivers/WindowsDriver:{ClipboardImpl.cs,CursorVisibility.cs,IWindowsInput.cs,WindowsComponentFactory.cs,WindowsConsole.cs,WindowsInput.cs,WindowsInputProcessor.cs,WindowsKeyboardLayout.cs,WindowsKeyConverter.cs,WindowsKeyHelper.cs,WindowsOutput.cs}
+|Drivers/WindowsHelpers:{NetWinVTConsole.cs,WindowsConsoleHelper.cs,WindowsVTInputHelper.cs,WindowsVTOutputHelper.cs}
 |FileServices:{DefaultSearchMatcher.cs,FileSystemColorProvider.cs,FileSystemIconProvider.cs,FileSystemInfoStats.cs,FileSystemTreeBuilder.cs,IFileOperations.cs,ISearchMatcher.cs}
 |Input:{Command.cs,CommandBinding.cs,CommandBindingsBase.cs,CommandBridge.cs,CommandContext.cs,CommandContextExtensions.cs,CommandEventArgs.cs,CommandOutcome.cs,CommandRouting.cs,IAcceptTarget.cs,ICommandBinding.cs,ICommandContext.cs}
-|Input/Keyboard:{Key.cs,KeyBinding.cs,KeyBindings.cs,KeyChangedEventArgs.cs,KeyEqualityComparer.cs,KeyEventType.cs,KeystrokeNavigatorEventArgs.cs,ModifierKey.cs}
+|Input/Keyboard:{Bind.cs,Key.cs,KeyBinding.cs,KeyBindings.cs,KeyChangedEventArgs.cs,KeyEqualityComparer.cs,KeyEventType.cs,KeystrokeNavigatorEventArgs.cs,ModifierKey.cs,PlatformKeyBinding.cs}
 |Input/Mouse:{GrabMouseEventArgs.cs,Mouse.cs,MouseBinding.cs,MouseBindings.cs,MouseFlags.cs,MouseFlagsChangedEventArgs.cs}
 |Resources:{GlobalResources.cs,ResourceManagerWrapper.cs,Strings.Designer.cs}
 |Testing:{IInputInjector.cs,InputInjectionEvent.cs,InputInjectionExtensions.cs,InputInjectionMode.cs,InputInjectionOptions.cs,InputInjector.cs}
 |Text:{NerdFonts.cs,RuneExtensions.cs,StringExtensions.cs,TextDirection.cs,TextFormatter.cs}
 |Time:{FuncTimeProvider.cs,ITimeProvider.cs,ITimer.cs,SystemTimeProvider.cs,VirtualTimeProvider.cs}
-|ViewBase:{DrawAdornmentsEventArgs.cs,DrawContext.cs,DrawEventArgs.cs,IDesignable.cs,IValue.cs,View.Adornments.cs,View.Arrangement.cs,View.Command.cs,View.Content.cs,View.cs,View.Cursor.cs,View.Diagnostics.cs,View.Drawing.Attribute.cs,View.Drawing.Clipping.cs,View.Drawing.cs,View.Drawing.Primitives.cs,View.Drawing.Scheme.cs,View.Hierarchy.cs,View.Keyboard.cs,View.Layout.cs,View.Navigation.cs,View.NeedsDraw.cs,View.ScrollBars.cs,View.Text.cs,ViewCollectionHelpers.cs,ViewDiagnosticFlags.cs,ViewEventArgs.cs,ViewExtensions.cs,ViewportSettingsFlags.cs,WeakReferenceExtensions.cs}
-|ViewBase/Adornment:{Adornment.cs,ArrangeButtons.cs,Arranger.cs,ArrangerButton.cs,Border.Arrangment.cs,Border.cs,BorderSettings.cs,Margin.cs,Padding.cs,ParentManipulator.cs,ShadowStyle.cs,ShadowView.cs}
-|ViewBase/EnumExtensions:{AddOrSubtractExtensions.cs,AlignmentExtensions.cs,AlignmentModesExtensions.cs,BorderSettingsExtensions.cs,DimAutoStyleExtensions.cs,DimensionExtensions.cs,DimPercentModeExtensions.cs,SideExtensions.cs,ViewDiagnosticFlagsExtensions.cs}
+|ViewBase:{DrawAdornmentsEventArgs.cs,DrawContext.cs,DrawEventArgs.cs,IDesignable.cs,IValue.cs,View.Adornments.cs,View.Arrangement.cs,View.Command.cs,View.Content.cs,View.cs,View.Cursor.cs,View.Diagnostics.cs,View.Drawing.Adornments.cs,View.Drawing.Attribute.cs,View.Drawing.Clipping.cs,View.Drawing.cs,View.Drawing.LineCanvas.cs,View.Drawing.Primitives.cs,View.Drawing.Scheme.cs,View.Hierarchy.cs,View.Keyboard.cs,View.Layout.cs,View.Navigation.cs,View.NeedsDraw.cs,View.ScrollBars.cs,View.Text.cs,ViewCollectionHelpers.cs,ViewDiagnosticFlags.cs,ViewEventArgs.cs,ViewExtensions.cs,ViewportSettingsFlags.cs,WeakReferenceExtensions.cs}
+|ViewBase/Adornment:{AdornmentImpl.cs,AdornmentView.cs,ArrangeButtons.cs,Arranger.cs,ArrangerButton.cs,Border.cs,BorderSettings.cs,BorderView.Arrangement.cs,BorderView.cs,IAdornment.cs,IAdornmentView.cs,ITitleView.cs,Margin.cs,MarginView.cs,Padding.cs,PaddingView.cs,ShadowStyles.cs,ShadowView.cs,TabLayoutContext.cs,TitleView.cs}
 |ViewBase/Helpers:{StackExtensions.cs}
 |ViewBase/Layout:{AddOrSubtract.cs,Aligner.cs,Alignment.cs,AlignmentModes.cs,Dim.cs,DimAbsolute.cs,DimAuto.cs,DimAutoStyle.cs,DimCombine.cs,Dimension.cs,DimFill.cs,DimFunc.cs,DimPercent.cs,DimPercentMode.cs,DimView.cs,LayoutEventArgs.cs,LayoutException.cs,Pos.cs,PosAbsolute.cs,PosAlign.cs,PosAnchorEnd.cs,PosCenter.cs,PosCombine.cs,PosFunc.cs,PosPercent.cs,PosView.cs,Side.cs,SizeChangedEventArgs.cs,SuperViewChangedEventArgs.cs,ViewArrangement.cs,ViewManipulator.cs}
 |ViewBase/Mouse:{IMouseHoldRepeater.cs,MouseHoldRepeaterImpl.cs,MouseState.cs,View.Mouse.cs}
 |ViewBase/Navigation:{AdvanceFocusEventArgs.cs,FocusEventArgs.cs,NavigationDirection.cs,TabBehavior.cs}
 |ViewBase/Orientation:{IOrientation.cs,Orientation.cs,OrientationHelper.cs}
-|Views:{Bar.cs,Button.cs,CheckBox.cs,CheckState.cs,DatePicker.cs,Dialog.cs,DialogTResult.cs,DropDownList.cs,FrameView.cs,HexView.cs,HexViewEventArgs.cs,Label.cs,Line.cs,Link.cs,MessageBox.cs,NumericUpDown.cs,ProgressBar.cs,Prompt.cs,PromptExtensions.cs,ReadOnlyCollectionExtensions.cs,Shortcut.cs,StatusBar.cs,Window.cs}
+|Views:{Bar.cs,Button.cs,CheckBox.cs,CheckState.cs,DatePicker.cs,Dialog.cs,DialogTResult.cs,DropDownList.cs,DropDownListTEnum.cs,FrameView.cs,HexView.cs,HexViewEventArgs.cs,Label.cs,Line.cs,Link.cs,MessageBox.cs,NumericUpDown.cs,ProgressBar.cs,Prompt.cs,PromptExtensions.cs,ReadOnlyCollectionExtensions.cs,Shortcut.cs,StatusBar.cs,Tabs.cs,Window.cs}
 |Views/Autocomplete:{AppendAutocomplete.cs,AutocompleteBase.cs,AutocompleteContext.cs,AutocompleteFilepathContext.cs,IAutocomplete.cs,ISuggestionGenerator.cs,PopupAutocomplete.cs,PopupAutocomplete.PopUp.cs,SingleWordSuggestionGenerator.cs,Suggestion.cs}
 |Views/CharMap:{CharMap.cs,UcdApiClient.cs,UnicodeRange.cs}
 |Views/CollectionNavigation:{CollectionNavigator.cs,CollectionNavigatorBase.cs,DefaultCollectionNavigatorMatcher.cs,ICollectionNavigator.cs,ICollectionNavigatorMatcher.cs,IListCollectionNavigator.cs,TableCollectionNavigator.cs}
 |Views/Color:{AttributePicker.cs,BBar.cs,ColorBar.cs,ColorModelStrategy.cs,ColorPicker.16.cs,ColorPicker.cs,ColorPicker.Style.cs,GBar.cs,HueBar.cs,IColorBar.cs,LightnessBar.cs,RBar.cs,SaturationBar.cs,ValueBar.cs}
-|Views/FileDialogs:{AllowedType.cs,DefaultFileOperations.cs,FileDialog.cs,FileDialogCollectionNavigator.cs,FileDialogHistory.cs,FileDialogState.cs,FileDialogStyle.cs,FileDialogTableSource.cs,FilesSelectedEventArgs.cs,FileSystemCollectionNavigationMatcher.cs,OpenDialog.cs,OpenMode.cs,SaveDialog.cs}
+|Views/FileDialogs:{AllowedType.cs,DefaultFileOperations.cs,FileDialog.Commands.cs,FileDialog.cs,FileDialog.Navigation.cs,FileDialog.TableView.cs,FileDialogCollectionNavigator.cs,FileDialogHistory.cs,FileDialogState.cs,FileDialogStyle.cs,FileDialogTableSource.cs,FilesSelectedEventArgs.cs,FileSystemCollectionNavigationMatcher.cs,OpenDialog.cs,OpenMode.cs,SaveDialog.cs}
 |Views/GraphView:{Axis.cs,AxisIncrementToRender.cs,BarSeriesBar.cs,GraphCellToRender.cs,GraphView.cs,HorizontalAxis.cs,IAnnotation.cs,ISeries.cs,LegendAnnotation.cs,LineF.cs,MultiBarSeries.cs,PathAnnotation.cs,ScatterSeries.cs,Series.cs,TextAnnotation.cs,VerticalAxis.cs}
 |Views/LinearRange:{LinearRange.cs,LinearRangeAttributes.cs,LinearRangeConfiguration.cs,LinearRangeEventArgs.cs,LinearRangeOption.cs,LinearRangeOptionEventArgs.cs,LinearRangeStyle.cs,LinearRangeType.cs}
-|Views/ListView:{IListDataSource.cs,ListView.Commands.cs,ListView.cs,ListView.Drawing.cs,ListView.Movement.cs,ListView.Selection.cs,ListViewEventArgs.cs,ListWrapper.cs}
+|Views/ListView:{IListDataSource.cs,ListView.Commands.cs,ListView.cs,ListView.Drawing.cs,ListView.Movement.cs,ListView.Selection.cs,ListViewEventArgs.cs,ListViewT.cs,ListWrapper.cs}
+|Views/Markdown:{InlineRun.cs,IntermediateBlock.cs,Markdown.cs,MarkdownCodeBlock.cs,MarkdownImageResolver.cs,MarkdownInlineParser.cs,MarkdownLinkEventArgs.cs,MarkdownTable.cs,MarkdownView.Drawing.cs,MarkdownView.Layout.cs,MarkdownView.Mouse.cs,MarkdownView.Parsing.cs,RenderedLine.cs,TableData.cs}
 |Views/Menu:{IMenuBarEntry.cs,Menu.cs,MenuBar.cs,MenuBarItem.cs,MenuItem.cs,PopoverMenu.cs}
-|Views/Runnable:{Runnable.cs,RunnableTResult.cs}
-|Views/ScrollBar:{ScrollBar.cs,ScrollBarVisibilityMode.cs,ScrollSlider.cs}
+|Views/Runnable:{Runnable.cs,RunnableTResult.cs,RunnableWrapper.cs}
+|Views/ScrollBar:{ScrollBar.cs,ScrollBarVisibilityMode.cs,ScrollButton.cs,ScrollSlider.cs}
 |Views/Selectors:{FlagSelector.cs,FlagSelectorTEnum.cs,OptionSelector.cs,OptionSelectorTEnum.cs,SelectorBase.cs,SelectorStyles.cs}
 |Views/SpinnerView:{SpinnerStyle.cs,SpinnerView.cs}
 |Views/TableView:{CellActivatedEventArgs.cs,CellColorGetterArgs.cs,CellToggledEventArgs.cs,CheckBoxTableSourceWrapper.cs,CheckBoxTableSourceWrapperByIndex.cs,CheckBoxTableSourceWrapperByObject.cs,ColumnStyle.cs,DataTableSource.cs,EnumerableTableSource.cs,IEnumerableTableSource.cs,ITableSource.cs,ListColumnStyle.cs,ListTableSource.cs,RowColorGetterArgs.cs,SelectedCellChangedEventArgs.cs,TableSelection.cs,TableStyle.cs,TableView.CellMapping.cs,TableView.cs,TableView.Drawing.cs,TableView.Mouse.cs,TableView.Navigation.cs,TableView.Selection.cs,TreeTableSource.cs}
-|Views/TabView:{Tab.cs,TabChangedEventArgs.cs,TabMouseEventArgs.cs,TabRow.cs,TabStyle.cs,TabView.cs}
 |Views/TextInput:{ContentsChangedEventArgs.cs,DateEditor.cs,DateTextProvider.cs,HistoryText.cs,HistoryTextItemEventArgs.cs,ITextValidateProvider.cs,NetMaskedTextProvider.cs,TextEditingLineStatus.cs,TextModel.cs,TextRegexProvider.cs,TextValidateField.cs,TimeEditor.cs,TimeTextProvider.cs}
 |Views/TextInput/TextField:{TextField.Commands.cs,TextField.cs,TextField.Drawing.cs,TextField.History.cs,TextField.Keyboard.cs,TextField.Mouse.cs,TextField.Selection.cs,TextField.Text.cs,TextFieldAutocomplete.cs}
 |Views/TextInput/TextView:{TextView.Commands.cs,TextView.cs,TextView.Drawing.cs,TextView.Files.cs,TextView.Find.cs,TextView.History.cs,TextView.Keyboard.cs,TextView.Mouse.cs,TextView.Movement.cs,TextView.Scrolling.cs,TextView.Selection.cs,TextView.Text.cs,TextView.WordWrap.cs,TextViewAutocomplete.cs,WordWrapManager.cs}
-|Views/TreeView:{AspectGetterDelegate.cs,Branch.cs,DelegateTreeBuilder.cs,DrawTreeViewLineEventArgs.cs,ITreeBuilder.cs,ITreeViewFilter.cs,ObjectActivatedEventArgs.cs,SelectionChangedEventArgs.cs,TreeBuilder.cs,TreeNode.cs,TreeNodeBuilder.cs,TreeStyle.cs,TreeView.cs,TreeViewCollectionNavigatorMatcher.cs,TreeViewTextFilter.cs}
+|Views/TreeView:{AspectGetterDelegate.cs,Branch.cs,DelegateTreeBuilder.cs,DrawTreeViewLineEventArgs.cs,ITreeBuilder.cs,ITreeNode.cs,ITreeView.cs,ITreeViewFilter.cs,ObjectActivatedEventArgs.cs,SelectionChangedEventArgs.cs,TreeBuilder.cs,TreeNode.cs,TreeNodeBuilder.cs,TreeSelection.cs,TreeStyle.cs,TreeView.cs,TreeView.Drawing.cs,TreeView.Mouse.cs,TreeView.Navigation.cs,TreeViewCollectionNavigatorMatcher.cs,TreeViewT.cs,TreeViewTextFilter.cs}
 |Views/Wizard:{Wizard.cs,WizardStep.cs}
 
 <!-- END AUTO-GENERATED-SOURCE-INDEX -->
@@ -424,6 +473,40 @@ See `.claude/cookbook/` for common UI patterns:
 |IFileOperations|Interface|GetFiles,GetDirectories,Exists
 |FileSystemTreeBuilder|Class|Build file trees
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

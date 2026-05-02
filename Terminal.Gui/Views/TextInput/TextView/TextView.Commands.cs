@@ -108,7 +108,8 @@ public partial class TextView
         AddCommand (Command.Undo, () => Undo ());
         AddCommand (Command.Redo, () => Redo ());
 
-        AddCommand (Command.NextTabStop, () => ProcessTab ());
+        AddCommand (Command.NextTabStop, () => ProcessTab (true));
+        AddCommand (Command.PreviousTabStop, () => ProcessTab (false));
         AddCommand (Command.ToggleOverwrite, () => ProcessSetOverwrite ());
         AddCommand (Command.EnableOverwrite, () => SetOverwrite (true));
         AddCommand (Command.DisableOverwrite, () => SetOverwrite (false));
@@ -309,6 +310,8 @@ public partial class TextView
         }
 
         _historyText.Undo ();
+        SetNeedsDraw ();
+        AdjustViewport ();
 
         return true;
     }
@@ -380,8 +383,8 @@ public partial class TextView
 
         bool retValue = DeleteTextLeft ();
 
-        DoNeededAction ();
         OnContentsChanged ();
+        DoNeededAction ();
 
         return retValue;
     }
@@ -431,7 +434,6 @@ public partial class TextView
             _historyText.Add ([[.. currentLine]], InsertionPoint);
 
             currentLine.RemoveAt (CurrentColumn - 1);
-            SetNeedsDraw ();
 
             if (_wordWrap)
             {
@@ -441,12 +443,6 @@ public partial class TextView
             CurrentColumn--;
 
             _historyText.Add ([[.. currentLine]], InsertionPoint, TextEditingLineStatus.Replaced);
-
-            if (CurrentColumn < Viewport.X)
-            {
-                Viewport = Viewport with { X = Viewport.X - 1 };
-            }
-            UpdateWrapModel ();
         }
         else
         {
@@ -457,32 +453,45 @@ public partial class TextView
             }
 
             SetWrapModel ();
-            int prowIdx = CurrentRow - 1;
-            List<Cell> prevRow = _model.GetLine (prowIdx);
 
-            _historyText.Add ([[.. prevRow]], InsertionPoint);
+            if (CurrentRow - 1 > -1)
+            {
+                int prowIdx = CurrentRow - 1;
+                List<Cell> prevRow = _model.GetLine (prowIdx);
 
-            List<List<Cell>> removedLines = [[.. prevRow], [.. GetCurrentLine ()]];
+                _historyText.Add ([[.. prevRow]], InsertionPoint);
 
-            _historyText.Add (removedLines, new Point (CurrentColumn, prowIdx), TextEditingLineStatus.Removed);
+                List<List<Cell>> removedLines = [[.. prevRow], [.. GetCurrentLine ()]];
 
-            int prevCount = prevRow.Count;
-            _model.GetLine (prowIdx).AddRange (GetCurrentLine ());
-            _model.RemoveLine (CurrentRow);
-            SetNeedsDraw ();
+                _historyText.Add (removedLines, new Point (CurrentColumn, prowIdx), TextEditingLineStatus.Removed);
+
+                int prevCount = prevRow.Count;
+                _model.GetLine (prowIdx).AddRange (GetCurrentLine ());
+                _model.RemoveLine (CurrentRow);
+
+                CurrentRow--;
+
+                _historyText.Add ([GetCurrentLine ()], new Point (CurrentColumn, prowIdx), TextEditingLineStatus.Replaced);
+
+                CurrentColumn = prevCount;
+            }
 
             if (_wordWrap)
             {
                 _wrapNeeded = true;
             }
-
-            CurrentRow--;
-
-            _historyText.Add ([GetCurrentLine ()], new Point (CurrentColumn, prowIdx), TextEditingLineStatus.Replaced);
-
-            CurrentColumn = prevCount;
-            UpdateWrapModel ();
         }
+
+        // Text was deleted, so it's always needed to redraw and update content size if needed
+        SetNeedsDraw ();
+
+        if (_model.ShouldInvalidateMaxWidthCache (CurrentRow, false))
+        {
+            _model.InvalidateMaxWidthCache ();
+            UpdateContentSize ();
+        }
+
+        UpdateWrapModel ();
 
         return true;
     }
@@ -512,7 +521,12 @@ public partial class TextView
             _historyText.Add (removedLines, InsertionPoint, TextEditingLineStatus.Removed);
             currentLine.AddRange (nextLine);
             _model.RemoveLine (CurrentRow + 1);
+
+            // Text was deleted, so it's always needed to redraw and update content size if needed
             SetNeedsDraw ();
+
+            // _model.RemoveLine already invalidates the max width cache for the removed line, but we also need to check if the merged line's width changed
+            UpdateContentSize ();
 
             _historyText.Add ([[.. currentLine]], InsertionPoint, TextEditingLineStatus.Replaced);
 
@@ -530,7 +544,15 @@ public partial class TextView
         _historyText.Add ([[.. currentLine]], InsertionPoint);
 
         currentLine.RemoveAt (CurrentColumn);
+
+        // Text was deleted, so it's always needed to redraw and update content size if needed
         SetNeedsDraw ();
+
+        if (_model.ShouldInvalidateMaxWidthCache (CurrentRow, false))
+        {
+            _model.InvalidateMaxWidthCache ();
+            UpdateContentSize ();
+        }
 
         _historyText.Add ([[.. currentLine]], InsertionPoint, TextEditingLineStatus.Replaced);
 
@@ -659,6 +681,7 @@ public partial class TextView
             UpdateWrapModel ();
 
             DeleteTextLeft ();
+            OnContentsChanged ();
 
             return true;
         }
@@ -749,6 +772,7 @@ public partial class TextView
         if (CurrentColumn == 0)
         {
             DeleteTextLeft ();
+            OnContentsChanged ();
 
             _historyText.ReplaceLast ([[.. GetCurrentLine ()]], InsertionPoint, TextEditingLineStatus.Replaced);
 
@@ -945,7 +969,7 @@ public partial class TextView
 
         if (CurrentRow >= Viewport.Y + Viewport.Height)
         {
-            Viewport = Viewport with { Y = Viewport.Y + 1 };
+            SetNeedsDraw ();
         }
 
         CurrentColumn = 0;
@@ -954,7 +978,7 @@ public partial class TextView
 
         if (!_wordWrap && CurrentColumn < Viewport.X)
         {
-            Viewport = Viewport with { X = 0 };
+            SetNeedsDraw ();
         }
 
         SetNeedsDraw ();
@@ -989,7 +1013,7 @@ public partial class TextView
         return SetOverwrite (!Used);
     }
 
-    private bool ProcessTab ()
+    private bool ProcessTab (bool addTab)
     {
         ResetColumnTrack ();
 
@@ -998,7 +1022,24 @@ public partial class TextView
             return false;
         }
 
-        InsertText (new Key ((KeyCode)'\t'));
+        if (addTab)
+        {
+            InsertText (new Key ((KeyCode)'\t'));
+        }
+        else
+        {
+            List<Cell> line = GetCurrentLine ();
+
+            if (CurrentColumn - 1 > -1 && CurrentColumn - 1 < line.Count && line [CurrentColumn - 1].Grapheme == "\t")
+            {
+                DeleteTextLeft ();
+                OnContentsChanged ();
+            }
+            else
+            {
+                return true;
+            }
+        }
         DoNeededAction ();
 
         return true;

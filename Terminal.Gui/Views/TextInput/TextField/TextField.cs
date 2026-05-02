@@ -112,19 +112,23 @@ public partial class TextField : View, IDesignable, IValue<string>
 
     private void TextField_Initialized (object? sender, EventArgs e)
     {
-        _insertionPoint = Text.GetRuneCount ();
-
-        if (Viewport.Width > 0)
+        if (!ReadOnly)
         {
-            ScrollOffset = _insertionPoint > Viewport.Width + 1 ? _insertionPoint - Viewport.Width + 1 : 0;
+            _insertionPoint = GraphemeHelper.GetGraphemeCount (Text);
         }
 
-        if (Autocomplete.HostControl is { })
+        if (!ReadOnly && Viewport.Width > 0)
+        {
+            int colsWidth = Text.GetColumns ();
+            ScrollOffset = colsWidth > Viewport.Width + 1 ? colsWidth - Viewport.Width + 1 : 0;
+        }
+
+        if (Autocomplete?.HostControl is { })
         {
             return;
         }
-        Autocomplete.HostControl = this;
-        Autocomplete.PopupInsideContainer = false;
+        Autocomplete?.HostControl = this;
+        Autocomplete?.PopupInsideContainer = false;
     }
 
     /// <summary>Gets or sets whether the text field is read-only.</summary>
@@ -144,10 +148,25 @@ public partial class TextField : View, IDesignable, IValue<string>
             App.Mouse.UngrabMouse ();
         }
 
-        // If gaining focus via keyboard (not mouse), select all text
-        if (newHasFocus && !_focusSetByMouse && _text.Count > 0)
+        // If gaining focus via keyboard (not mouse), select all text if not ReadOnly
+        if (newHasFocus && !ReadOnly && !_focusSetByMouse && _text.Count > 0)
         {
             SelectAll ();
+        }
+
+        if (ReadOnly && InsertionPoint > 0)
+        {
+            _insertionPoint = 0;
+        }
+
+        if (ReadOnly && ScrollOffset > 0)
+        {
+            ScrollOffset = 0;
+        }
+
+        if (ReadOnly && SelectedLength > 0)
+        {
+            ClearAllSelection ();
         }
 
         // Reset the flag after handling focus change
@@ -174,11 +193,11 @@ public partial class TextField : View, IDesignable, IValue<string>
         }
     }
 
-    /// <inheritdoc/>
-    protected override void OnSubViewsLaidOut (LayoutEventArgs args)
+    /// <inheritdoc />
+    protected override void OnViewportChanged (DrawEventArgs e)
     {
-        base.OnSubViewsLaidOut (args);
-        UpdateCursor ();
+        base.OnViewportChanged (e);
+        Adjust ();
     }
 
     /// <summary>Get the Context Menu for this view.</summary>

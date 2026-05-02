@@ -28,6 +28,16 @@ namespace Terminal.Gui.Views;
 ///         becomes the default (<see cref="Button.IsDefault"/>). Button alignment is controlled by
 ///         <see cref="Dialog{TResult}.ButtonAlignment"/> and <see cref="Dialog{TResult}.ButtonAlignmentModes"/>.
 ///     </para>
+///     <para>
+///         The dialog is positioned at <see cref="Pos.Center"/> with <see cref="Dim.Auto"/> sizing,
+///         limited to 100% of <see cref="IApplication.TopRunnableView"/> (or screen dimensions).
+///     </para>
+///     <para>
+///         <b>NOTE </b> - Setting <see cref="View.ViewportSettings"/> to
+///         <see cref="ViewportSettingsFlags.HasHorizontalScrollBar"/> or
+///         <see cref="ViewportSettingsFlags.HasVerticalScrollBar"/>
+///         is not supported and may cause layout issues.
+///     </para>
 /// </remarks>
 /// <example>
 ///     <code>
@@ -72,7 +82,7 @@ public class Dialog : Dialog<int>
     ///     The default shadow style for new <see cref="Dialog"/> instances. Can be configured via theme files.
     /// </summary>
     [ConfigurationProperty (Scope = typeof (ThemeScope))]
-    public static ShadowStyle DefaultShadow { get; set; } = ShadowStyle.Transparent;
+    public static ShadowStyles DefaultShadow { get; set; } = ShadowStyles.Transparent;
 
     /// <summary>
     ///     Helper property that gets whether the dialog was canceled (Result is <see langword="null"/> or 1).
@@ -102,7 +112,7 @@ public class Dialog : Dialog<int>
         get => ((IRunnable)this).Result is int value ? value : null;
         set
         {
-            if (value > Buttons.Length - 1 || value < 0)
+            if (value >= Buttons.Length || value < 0)
             {
                 throw new ArgumentOutOfRangeException (nameof (value), @"Result value must be a valid button index or null.");
             }

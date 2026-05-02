@@ -233,6 +233,75 @@ public class KeyTests
         Assert.Equal (KeyCode.Null, eventArgs.KeyCode);
     }
 
+    [Fact]
+    public void GetPrintableText_Prefers_AssociatedText ()
+    {
+        Key key = new (Key.D1.WithShift) { AssociatedText = "!" };
+
+        Assert.Equal ("!", key.GetPrintableText ());
+        Assert.True (key.TryGetPrintableRune (out Rune rune));
+        Assert.Equal (new Rune ('!'), rune);
+    }
+
+    [Fact]
+    public void GetPrintableText_Falls_Back_To_ShiftedKeyCode ()
+    {
+        Key key = new (Key.D1.WithShift) { ShiftedKeyCode = (KeyCode)'!' };
+
+        Assert.Equal ("!", key.GetPrintableText ());
+        Assert.True (key.TryGetPrintableRune (out Rune rune));
+        Assert.Equal (new Rune ('!'), rune);
+    }
+
+    [Fact]
+    public void GetPrintableText_Falls_Back_To_AsRune ()
+    {
+        Key key = new (Key.D1.WithShift);
+
+        Assert.Equal ("1", key.GetPrintableText ());
+        Assert.True (key.TryGetPrintableRune (out Rune rune));
+        Assert.Equal (new Rune ('1'), rune);
+    }
+
+    [Fact]
+    public void TryGetPrintableRune_Returns_False_For_MultiRune_AssociatedText ()
+    {
+        Key key = new (Key.A) { AssociatedText = "ab" };
+
+        Assert.False (key.TryGetPrintableRune (out Rune rune));
+        Assert.Equal (default (Rune), rune);
+    }
+
+    [Fact]
+    public void AsGrapheme_Returns_SingleAssociatedGrapheme ()
+    {
+        Key key = new () { AssociatedText = "👨‍👩‍👧‍👦" };
+
+        Assert.Equal ("👨‍👩‍👧‍👦", key.AsGrapheme);
+        Assert.Equal (default (Rune), key.AsRune);
+    }
+
+    [Fact]
+    public void AsGrapheme_Returns_CombiningSequence_AsSingleGrapheme ()
+    {
+        Key key = new () { AssociatedText = "a\u0301" };
+
+        Assert.Equal ("a\u0301", key.AsGrapheme);
+        Assert.Equal (default (Rune), key.AsRune);
+    }
+
+    [Fact]
+    public void AsGrapheme_And_AsRune_Suppress_ModifiedPrintableFallback_WithoutAssociatedText ()
+    {
+        Key key = new (Key.T.WithShift.WithAlt) { ShiftedKeyCode = (KeyCode)'T' };
+
+        Assert.Equal (string.Empty, key.AsGrapheme);
+        Assert.Equal (default (Rune), key.AsRune);
+        Assert.Equal (string.Empty, key.GetPrintableText ());
+        Assert.False (key.TryGetPrintableRune (out Rune rune));
+        Assert.Equal (default (Rune), rune);
+    }
+
     [Theory]
     [InlineData ("Barf")]
     public void Constructor_String_Invalid_Throws (string keyString) { Assert.Throws<ArgumentException> (() => new Key (keyString)); }

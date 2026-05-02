@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Numerics;
 using System.Text.Json.Serialization;
 
@@ -8,6 +9,11 @@ namespace Terminal.Gui.Drawing;
 ///     Represents a theme definition that maps each <see cref="VisualRole"/> (such as <see cref="VisualRole.Focus"/>,
 ///     <see cref="VisualRole.Disabled"/>, etc.)
 ///     to an <see cref="Attribute"/> describing its foreground color, background color, and text style.
+///     <para>
+///         See <see href="https://gui-cs.github.io/Terminal.Gui/docs/drawing.html"/> for more information.
+///     </para>
+/// </summary>
+/// <remarks>
 ///     <para>
 ///         A <see cref="Scheme"/> enables consistent, semantic theming of UI elements by associating each visual state
 ///         with a specific style.
@@ -20,11 +26,6 @@ namespace Terminal.Gui.Drawing;
 ///         <see cref="Scheme"/> objects are immutable. To update a scheme, create a new instance with the desired values.
 ///         Use <see cref="SchemeManager"/> to manage available schemes and apply them to views.
 ///     </para>
-///     <para>
-///         See <see href="https://gui-cs.github.io/Terminal.Gui/docs/drawing.html"/> for more information.
-///     </para>
-/// </summary>
-/// <remarks>
 ///     <para>
 ///         <b>Immutability:</b> Scheme objects are immutable. Once constructed, their properties cannot be changed. To
 ///         modify a Scheme,
@@ -185,8 +186,8 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
                                                                                             CreateDialog ()),
                                                           new KeyValuePair<string, Scheme> (SchemeManager.SchemesToSchemeName (Schemes.Error)!, CreateError ()),
                                                           new KeyValuePair<string, Scheme> (SchemeManager.SchemesToSchemeName (Schemes.Menu)!, CreateMenu ()),
-                                                          new KeyValuePair<string, Scheme> (SchemeManager.SchemesToSchemeName (Schemes.Runnable)!,
-                                                                                            CreateRunnable ())
+                                                          new KeyValuePair<string, Scheme> (SchemeManager.SchemesToSchemeName (Schemes.Accent)!,
+                                                                                            CreateAccent ())
                                                       ]);
 
         Scheme CreateBase () => new () { Normal = new Attribute (Color.None, Color.None) };
@@ -197,7 +198,31 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
 
         Scheme CreateMenu () => new () { Normal = new Attribute (StandardColor.Charcoal, StandardColor.LightBlue, TextStyle.Bold) };
 
-        Scheme CreateRunnable () => new () { Normal = new Attribute (Color.None, Color.None) };
+        Scheme CreateAccent () => new () { Normal = new Attribute (Color.None, Color.None) };
+    }
+
+    /// <summary>
+    ///     Derives an opaque Accent <see cref="Scheme"/> from the specified Base scheme at draw time.
+    ///     The background is shifted slightly brighter (on dark) or dimmer (on light) relative to Base,
+    ///     and forced to be opaque (A=255). The foreground is resolved from Base.
+    /// </summary>
+    /// <param name="baseScheme">The Base scheme to derive Accent colors from.</param>
+    /// <param name="defaultTerminalColors">
+    ///     The terminal's actual default foreground/background colors (queried via OSC 10/11), used to resolve
+    ///     <see cref="Color.None"/>. If <see langword="null"/>, falls back to White/Black.
+    /// </param>
+    /// <returns>A new <see cref="Scheme"/> with an opaque Normal attribute derived from <paramref name="baseScheme"/>.</returns>
+    public static Scheme DeriveAccent (Scheme baseScheme, Attribute? defaultTerminalColors)
+    {
+        Color resolvedBg = ResolveNone (baseScheme.Normal.Background, defaultTerminalColors);
+        Color resolvedFg = ResolveNone (baseScheme.Normal.Foreground, defaultTerminalColors, true);
+        bool isDark = resolvedBg.IsDarkColor ();
+        Color accentBg = isDark ? resolvedBg.GetBrighterColor (0.1, isDark) : resolvedBg.GetDimmerColor (0.1, isDark);
+
+        // Force opaque
+        accentBg = new Color (accentBg.R, accentBg.G, accentBg.B, 255);
+
+        return new Scheme { Normal = new Attribute (resolvedFg, accentBg) };
     }
 
     /// <summary>Creates a new instance set to the default attributes (see <see cref="Attribute.Default"/>).</summary>
@@ -220,6 +245,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
         _editable = scheme.TryGetExplicitlySetAttributeForRole (VisualRole.Editable, out Attribute? editable) ? editable : null;
         _readOnly = scheme.TryGetExplicitlySetAttributeForRole (VisualRole.ReadOnly, out Attribute? readOnly) ? readOnly : null;
         _disabled = scheme.TryGetExplicitlySetAttributeForRole (VisualRole.Disabled, out Attribute? disabled) ? disabled : null;
+        _code = scheme.TryGetExplicitlySetAttributeForRole (VisualRole.Code, out Attribute? code) ? code : null;
     }
 
     /// <summary>Creates a new instance, initialized with the values from <paramref name="attribute"/>.</summary>
@@ -269,6 +295,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
                         VisualRole.Editable => _editable,
                         VisualRole.ReadOnly => _readOnly,
                         VisualRole.Disabled => _disabled,
+                        VisualRole.Code => _code,
                         _ => null
                     };
 
@@ -291,7 +318,9 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
         {
             stack.Remove (role);
 
-            return attr!.Value;
+            Debug.Assert (attr != null, nameof (attr) + " != null");
+
+            return attr.Value;
         }
 
         // TODO: Provide an API that lets devs override this algo?
@@ -323,7 +352,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
                 result = focus with
                 {
                     Foreground = ResolveNone (focus.Foreground, defaultTerminalColors, true).GetBrighterColor (0.2, isDark),
-                    Background = focusBg.GetDimmerColor (0.2, isDark),
+                    Background = focusBg.GetDimmerColor (0.2, !isDark),
                     Style = focus.Style | TextStyle.Bold
                 };
 
@@ -353,11 +382,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
                 bool isDark = normalBg.IsDarkColor ();
                 Color resolvedFg = ResolveNone (normal.Foreground, defaultTerminalColors, true);
 
-                result = normal with
-                {
-                    Foreground = resolvedFg,
-                    Background = resolvedFg.GetDimmerColor (0.5, isDark)
-                };
+                result = normal with { Foreground = resolvedFg, Background = resolvedFg.GetDimmerColor (0.5, isDark) };
 
                 break;
             }
@@ -367,10 +392,17 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
                 Attribute editable = GetAttributeForRoleCore (VisualRole.Editable, stack, defaultTerminalColors);
                 bool isDark = ResolveNone (editable.Background, defaultTerminalColors).IsDarkColor ();
 
-                result = editable with
-                {
-                    Foreground = editable.Foreground.GetDimmerColor (0.05, isDark)
-                };
+                result = editable with { Foreground = editable.Foreground.GetDimmerColor (0.05, isDark) };
+
+                break;
+            }
+
+            case VisualRole.Code:
+            {
+                Attribute editable = GetAttributeForRoleCore (VisualRole.Editable, stack, defaultTerminalColors);
+                bool isDark = ResolveNone (editable.Background, defaultTerminalColors).IsDarkColor ();
+
+                result = editable with { Background = editable.Background.GetDimmerColor (0.2, isDark), Style = editable.Style | TextStyle.Bold };
 
                 break;
             }
@@ -381,10 +413,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
                 Color normalBg = ResolveNone (normal.Background, defaultTerminalColors);
                 bool isDark = normalBg.IsDarkColor ();
 
-                result = normal with
-                {
-                    Foreground = ResolveNone (normal.Foreground, defaultTerminalColors, true).GetDimmerColor (0.05, isDark)
-                };
+                result = normal with { Foreground = ResolveNone (normal.Foreground, defaultTerminalColors, true).GetDimmerColor (0.05, isDark) };
 
                 break;
             }
@@ -393,10 +422,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
             {
                 Attribute normal = GetAttributeForRoleCore (VisualRole.Normal, stack, defaultTerminalColors);
 
-                result = normal with
-                {
-                    Style = normal.Style | TextStyle.Underline
-                };
+                result = normal with { Style = normal.Style | TextStyle.Underline };
 
                 break;
             }
@@ -405,10 +431,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
             {
                 Attribute focus = GetAttributeForRoleCore (VisualRole.Focus, stack, defaultTerminalColors);
 
-                result = focus with
-                {
-                    Style = focus.Style | TextStyle.Underline
-                };
+                result = focus with { Style = focus.Style | TextStyle.Underline };
 
                 break;
             }
@@ -417,10 +440,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
             {
                 Attribute active = GetAttributeForRoleCore (VisualRole.Active, stack, defaultTerminalColors);
 
-                result = active with
-                {
-                    Style = active.Style | TextStyle.Underline
-                };
+                result = active with { Style = active.Style | TextStyle.Underline };
 
                 break;
             }
@@ -466,7 +486,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
     ///     set, will be automatically generated. See the description for <see cref="Scheme"/> for details on the
     ///     algorithm used.
     /// </summary>
-    public Attribute Normal { get => _normal!.Value; init => _normal = value; }
+    public Attribute Normal { get => _normal ?? Attribute.Default; init => _normal = value; }
 
     private readonly Attribute? _hotNormal;
 
@@ -512,7 +532,7 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
     /// <summary>
     ///     The visual role for elements that are active or selected (e.g., selected item in a <see cref="ListView"/>). Also
     ///     used
-    ///     for headers in, <see cref="HexView"/>, <see cref="CharMap"/> and  <see cref="TabView"/>.
+    ///     for headers in, <see cref="HexView"/>, <see cref="CharMap"/>.
     ///     If not explicitly set, will be a derived value. See the description for <see cref="Scheme"/> for details on the
     ///     algorithm used.
     /// </summary>
@@ -587,6 +607,15 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
         init => _disabled = SetAttributeForRoleProperty (value, VisualRole.Disabled);
     }
 
+    private readonly Attribute? _code;
+
+    /// <summary>
+    ///     The visual role for preformatted or source code content (e.g., <see cref="MarkdownCodeBlock"/>, inline code).
+    ///     If not explicitly set, derived from <see cref="Editable"/> with a dimmed background and
+    ///     <see cref="TextStyle.Bold"/>.
+    /// </summary>
+    public Attribute Code { get => GetAttributeForRoleProperty (_code, VisualRole.Code); init => _code = SetAttributeForRoleProperty (value, VisualRole.Code); }
+
     /// <inheritdoc/>
     public virtual bool Equals (Scheme? other) =>
         other is { }
@@ -599,17 +628,19 @@ public record Scheme : IEqualityOperators<Scheme, Scheme, bool>
         && EqualityComparer<Attribute>.Default.Equals (Highlight, other.Highlight)
         && EqualityComparer<Attribute>.Default.Equals (Editable, other.Editable)
         && EqualityComparer<Attribute>.Default.Equals (ReadOnly, other.ReadOnly)
-        && EqualityComparer<Attribute>.Default.Equals (Disabled, other.Disabled);
+        && EqualityComparer<Attribute>.Default.Equals (Disabled, other.Disabled)
+        && EqualityComparer<Attribute>.Default.Equals (Code, other.Code);
 
     /// <inheritdoc/>
     public override int GetHashCode () =>
-        HashCode.Combine (HashCode.Combine (Normal, HotNormal, Focus, HotFocus, Active, HotActive, Highlight, Editable), HashCode.Combine (ReadOnly, Disabled));
+        HashCode.Combine (HashCode.Combine (Normal, HotNormal, Focus, HotFocus, Active, HotActive, Highlight, Editable),
+                          HashCode.Combine (ReadOnly, Disabled, Code));
 
     /// <inheritdoc/>
     public override string ToString () =>
         $"Normal: {Normal}; HotNormal: {HotNormal}; Focus: {Focus}; HotFocus: {HotFocus}; "
         + $"Active: {Active}; HotActive: {HotActive}; Highlight: {Highlight}; Editable: {Editable}; "
-        + $"ReadOnly: {ReadOnly}; Disabled: {Disabled}";
+        + $"ReadOnly: {ReadOnly}; Disabled: {Disabled}; Code: {Code}";
 
     /// <summary>
     ///     Resolves <see cref="Color.None"/> to a concrete color for use in color math (brighten, dim, invert).

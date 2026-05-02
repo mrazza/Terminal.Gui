@@ -1,17 +1,20 @@
-﻿#nullable enable
+﻿// ReSharper disable AccessToDisposedClosure
+
+#nullable enable
 
 namespace UICatalog.Scenarios;
 
-[ScenarioMetadata ("Notepad", "Multi-tab text editor using the TabView control.")]
+[ScenarioMetadata ("Notepad", "Multi-tab text editor using the Tabs control.")]
 [ScenarioCategory ("Controls")]
-[ScenarioCategory ("TabView")]
+[ScenarioCategory ("Tabs")]
 [ScenarioCategory ("TextView")]
 public class Notepad : Scenario
 {
     private IApplication? _app;
-    private TabView? _focusedTabView;
+    private Tabs? _focusedTabs;
+    private string? _lastDirectory;
     private int _numNewTabs = 1;
-    private TabView? _tabView;
+    private Tabs? _tabs;
     private Window? _topWindow;
     public Shortcut? LenShortcut { get; private set; }
 
@@ -21,6 +24,19 @@ public class Notepad : Scenario
         using IApplication app = Application.Create ();
         app.Init ();
         _app = app;
+
+        // Set initial directory to docfx/docs relative to the repository root
+        string? repoRoot = FindRepoRoot ();
+
+        if (repoRoot is { })
+        {
+            string docsPath = Path.Combine (repoRoot, "docfx", "docs");
+
+            if (Directory.Exists (docsPath))
+            {
+                _lastDirectory = docsPath;
+            }
+        }
 
         _topWindow = new Window { BorderStyle = LineStyle.None };
 
@@ -39,15 +55,7 @@ public class Notepad : Scenario
 
         menu.Add (new MenuBarItem ("_About", [new MenuItem { Title = "_About", Action = () => MessageBox.Query (app, "Notepad", "About Notepad...", "Ok") }]));
 
-        _tabView = CreateNewTabView ();
-
-        _tabView.Style.ShowBorder = true;
-        _tabView.ApplyStyleChanges ();
-
-        _tabView.X = 0;
-        _tabView.Y = Pos.Bottom (menu);
-        _tabView.Width = Dim.Fill ();
-        _tabView.Height = Dim.Fill (1);
+        _tabs = new Tabs { X = 0, Y = Pos.Bottom (menu), Width = Dim.Fill (), Height = Dim.Fill (1) };
 
         LenShortcut = new Shortcut (Key.Empty, "Len: ", null);
 
@@ -62,18 +70,29 @@ public class Notepad : Scenario
                      LenShortcut
                  ]) { AlignmentModes = AlignmentModes.IgnoreFirstOrLast };
 
-        _topWindow.Add (menu, _tabView, statusBar);
+        _topWindow.Add (menu, _tabs, statusBar);
 
-        _focusedTabView = _tabView;
-        _tabView.SelectedTabChanged += TabView_SelectedTabChanged;
-        _tabView.HasFocusChanging += (_, _) => _focusedTabView = _tabView;
+        _focusedTabs = _tabs;
+        _tabs.ValueChanged += Tabs_ValueChanged;
+        _tabs.HasFocusChanging += (_, _) => _focusedTabs = _tabs;
 
         _topWindow.IsModalChanged += (_, e) =>
                                      {
                                          if (e.Value)
                                          {
-                                             New ();
-                                             LenShortcut.Title = $"Len:{_focusedTabView?.Text.Length ?? 0}";
+                                             // Only create the initial tab the first time the window becomes modal.
+                                             // IsModalChanged fires again after every nested modal dialog closes,
+                                             // so we guard against creating duplicate tabs.
+                                             if (!_tabs!.TabCollection.Any ())
+                                             {
+                                                 New ();
+                                             }
+
+                                             LenShortcut.Title = $"Len:{GetSelectedTextLength ()}";
+                                         }
+                                         else
+                                         {
+                                             _tabs.ValueChanged -= Tabs_ValueChanged;
                                          }
                                      };
 
@@ -83,39 +102,40 @@ public class Notepad : Scenario
 
     public void Save ()
     {
-        if (_focusedTabView?.SelectedTab is { })
+        if (_focusedTabs?.Value is OpenedFile tab)
         {
-            Save (_focusedTabView, _focusedTabView.SelectedTab);
+            Save (_focusedTabs, tab);
         }
     }
 
-    public void Save (TabView tabViewToSave, Tab tabToSave)
+    private void Save (Tabs tabsToSave, OpenedFile tabToSave)
     {
-        if (tabToSave is not OpenedFile tab)
-        {
-            return;
-        }
-
-        if (tab.File is null)
+        if (tabToSave.File is null)
         {
             SaveAs ();
         }
         else
         {
-            tab.Save ();
+            tabToSave.Save ();
         }
 
-        tabViewToSave.SetNeedsDraw ();
+        tabsToSave.SetNeedsDraw ();
     }
 
     public bool SaveAs ()
     {
-        if (_focusedTabView?.SelectedTab is not OpenedFile tab)
+        if (_focusedTabs?.Value is not OpenedFile tab)
         {
             return false;
         }
 
         SaveDialog fd = new ();
+
+        if (_lastDirectory is { })
+        {
+            fd.Path = _lastDirectory;
+        }
+
         _app?.Run (fd);
 
         if (string.IsNullOrWhiteSpace (fd.Path) || fd.Canceled)
@@ -125,8 +145,9 @@ public class Notepad : Scenario
             return false;
         }
 
+        _lastDirectory = Path.GetDirectoryName (Path.GetFullPath (fd.Path));
         tab.File = new FileInfo (fd.Path);
-        tab.Text = fd.FileName;
+        tab.Title = fd.FileName ?? throw new InvalidOperationException ();
         tab.Save ();
 
         fd.Dispose ();
@@ -136,24 +157,19 @@ public class Notepad : Scenario
 
     private void Close ()
     {
-        if (_focusedTabView?.SelectedTab is { })
+        if (_focusedTabs?.Value is OpenedFile tab)
         {
-            Close (_focusedTabView, _focusedTabView.SelectedTab);
+            Close (_focusedTabs, tab);
         }
     }
 
-    private void Close (TabView tv, Tab tabToClose)
+    private void Close (Tabs tabs, OpenedFile tabToClose)
     {
-        if (tabToClose is not OpenedFile tab)
-        {
-            return;
-        }
+        _focusedTabs = tabs;
 
-        _focusedTabView = tv;
-
-        if (tab.UnsavedChanges)
+        if (tabToClose.UnsavedChanges)
         {
-            int? result = MessageBox.Query (tv.App!, "Save Changes", $"Save changes to {tab.Text.TrimEnd ('*')}", "Yes", "No", "Cancel");
+            int? result = MessageBox.Query (tabs.App!, "Save Changes", $"Save changes to {tabToClose.Title.TrimEnd ('*')}", "Yes", "No", "Cancel");
 
             if (result is null or 2)
             {
@@ -163,45 +179,52 @@ public class Notepad : Scenario
 
             if (result == 0)
             {
-                if (tab.File is null)
+                if (tabToClose.File is null)
                 {
                     SaveAs ();
                 }
                 else
                 {
-                    tab.Save ();
+                    tabToClose.Save ();
                 }
             }
         }
 
         // close and dispose the tab
-        tv.RemoveTab (tab);
-        tab.View?.Dispose ();
-        _focusedTabView = tv;
+        tabs.Remove (tabToClose);
+        tabToClose.Dispose ();
+        _focusedTabs = tabs;
 
         // If last tab is closed, open a new one
-        if (tv.Tabs.Count == 0)
+        if (!tabs.TabCollection.Any ())
         {
             New ();
         }
-    }
-
-    private TabView CreateNewTabView ()
-    {
-        TabView tv = new () { X = 0, Y = 0, Width = Dim.Fill (), Height = Dim.Fill () };
-
-        tv.TabClicked += TabView_TabClicked;
-        tv.SelectedTabChanged += TabView_SelectedTabChanged;
-        tv.HasFocusChanging += (_, _) => _focusedTabView = tv;
-
-        return tv;
     }
 
     private void New () => Open (null!, $"new {_numNewTabs++}");
 
     private void Open ()
     {
-        OpenDialog open = new () { Title = "Open", AllowsMultipleSelection = true };
+        OpenDialog open = new ()
+        {
+            Title = "Open",
+            AllowsMultipleSelection = true,
+            AllowedTypes =
+            [
+                new AllowedType ("Markdown", ".md", ".markdown"),
+                new AllowedType ("Text", ".txt", ".csv", ".tsv"),
+                new AllowedType ("Code", ".c", ".h", ".js", ".cs", ".json", ".yml"),
+                new AllowedTypeAny ()
+            ],
+            MustExist = true,
+            OpenMode = OpenMode.File
+        };
+
+        if (_lastDirectory is { })
+        {
+            open.Path = _lastDirectory;
+        }
 
         _app?.Run (open);
 
@@ -216,7 +239,7 @@ public class Notepad : Scenario
                     break;
                 }
 
-                // TODO should open in focused TabView
+                _lastDirectory = Path.GetDirectoryName (Path.GetFullPath (path));
                 Open (new FileInfo (path), Path.GetFileName (path));
             }
         }
@@ -224,91 +247,145 @@ public class Notepad : Scenario
         open.Dispose ();
     }
 
-    /// <summary>Creates a new tab with initial text</summary>
-    /// <param name="fileInfo">File that was read or null if a new blank document</param>
-    /// <param name="tabName"></param>
+    /// <summary>Creates a new tab with initial text, or reuses the current tab if it is virgin.</summary>
+    /// <param name="fileInfo">File that was read or null if a new blank document.</param>
+    /// <param name="tabName">Display name for the tab.</param>
     private void Open (FileInfo? fileInfo, string tabName)
     {
-        if (_focusedTabView is null)
+        if (_focusedTabs is null)
         {
             return;
         }
 
-        OpenedFile tab = new (this) { DisplayText = tabName, File = fileInfo };
-        tab.View = tab.CreateTextView (fileInfo);
-        tab.SavedText = tab.View.Text;
-        tab.RegisterTextViewEvents (_focusedTabView);
-
-        _focusedTabView.AddTab (tab, true);
-    }
-
-    private void Quit () => _topWindow?.RequestStop ();
-
-    private void TabView_SelectedTabChanged (object? sender, TabChangedEventArgs e)
-    {
-        if (LenShortcut is { })
+        // If the current tab is virgin (no file, no content), reuse it instead of creating a new one
+        if (fileInfo is { })
         {
-            LenShortcut.Title = $"Len:{e.NewTab?.View?.Text.Length ?? 0}";
+            if (_focusedTabs.Value is OpenedFile { IsPristine: true } currentTab)
+            {
+                currentTab.File = fileInfo;
+                currentTab.Title = tabName;
+                currentTab.LoadFile (fileInfo);
+
+                return;
+            }
         }
 
-        e.NewTab?.View?.SetFocus ();
+        OpenedFile tab = new (this) { Title = tabName, File = fileInfo };
+        tab.CreateAndAddTextView (fileInfo);
+        tab.RegisterTextViewEvents ();
+
+        _focusedTabs.Add (tab);
+        _focusedTabs.Value = tab;
     }
 
-    private void TabView_TabClicked (object? sender, TabMouseEventArgs e)
+    private void Quit ()
     {
-        // we are only interested in right clicks
-        if (!e.MouseEvent.Flags.HasFlag (MouseFlags.RightButtonClicked))
+        if (_tabs is { })
+        {
+            foreach (OpenedFile tab in _tabs.TabCollection.OfType<OpenedFile> ())
+            {
+                if (!tab.UnsavedChanges)
+                {
+                    continue;
+                }
+                int? result = MessageBox.Query (_app!, "Unsaved Changes", $"Save changes to {tab.Title.TrimEnd ('*')}?", "Yes", "No", "Cancel");
+
+                if (result is null or 2)
+                {
+                    return;
+                }
+
+                if (result != 0)
+                {
+                    continue;
+                }
+                _focusedTabs = _tabs;
+                _tabs.Value = tab;
+
+                if (tab.File is null)
+                {
+                    if (!SaveAs ())
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    tab.Save ();
+                }
+            }
+        }
+
+        _topWindow?.RequestStop ();
+    }
+
+    /// <summary>
+    ///     Walks up the directory tree from the current directory looking for the repository root
+    ///     (identified by Terminal.sln).
+    /// </summary>
+    private static string? FindRepoRoot ()
+    {
+        DirectoryInfo? dir = new (Environment.CurrentDirectory);
+
+        while (dir is { })
+        {
+            if (File.Exists (Path.Combine (dir.FullName, "Terminal.sln")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return null;
+    }
+
+    private int GetSelectedTextLength ()
+    {
+        if (_focusedTabs?.Value is OpenedFile tab)
+        {
+            return tab.TextView?.Text.Length ?? 0;
+        }
+
+        return 0;
+    }
+
+    private void Tabs_ValueChanged (object? sender, ValueChangedEventArgs<View?> e)
+    {
+        if (LenShortcut is null)
         {
             return;
         }
+        var len = 0;
 
-        View [] items;
-
-        if (e.Tab is null)
+        if (e.NewValue is OpenedFile tab)
         {
-            items = [new MenuItem { Title = "Open", Action = Open }];
-        }
-        else
-        {
-            var tv = (TabView)sender!;
-
-            items =
-            [
-                new MenuItem { Title = "Save", Action = () => Save (_focusedTabView!, e.Tab) },
-                new MenuItem { Title = "Close", Action = () => Close (tv, e.Tab) }
-            ];
+            len = tab.TextView?.Text.Length ?? 0;
         }
 
-        PopoverMenu contextMenu = new (items);
+        LenShortcut.Title = $"Len:{len}";
 
-        // Registering with the PopoverManager will ensure that the context menu is closed when the view is no longer focused
-        // and the context menu is disposed when it is closed.
-        if (sender is TabView tabView && tabView.App?.Popovers is { })
-        {
-            tabView.App.Popovers.Register (contextMenu);
-        }
-
-        contextMenu.MakeVisible (e.MouseEvent.ScreenPosition);
-
-        e.MouseEvent.Handled = true;
+        //if (e.NewValue is OpenedFile openedTab)
+        //{
+        //    openedTab.TextView?.SetFocus ();
+        //}
     }
 
-    private class OpenedFile (Notepad notepad) : Tab
+    private class OpenedFile (Notepad notepad) : View
     {
-        private readonly Notepad _notepad = notepad;
+        public FileInfo? File { get; set; }
 
-        public OpenedFile CloneTo (TabView other)
-        {
-            OpenedFile newTab = new (_notepad) { DisplayText = Text, File = File };
-            newTab.View = newTab.CreateTextView (newTab.File);
-            newTab.SavedText = newTab.View.Text;
-            newTab.RegisterTextViewEvents (other);
-            other.AddTab (newTab, true);
+        /// <summary>Gets whether this tab is a pristine new document — never opened to a file and has no content.</summary>
+        public bool IsPristine => File is null && string.IsNullOrEmpty (TextView?.Text);
 
-            return newTab;
-        }
+        public TextView? TextView { get; private set; }
 
-        public View CreateTextView (FileInfo? file)
+        /// <summary>The text of the tab the last time it was saved.</summary>
+        private string? _savedText;
+
+        public bool UnsavedChanges => TextView is { } && !string.Equals (_savedText, TextView.Text);
+
+        public void CreateAndAddTextView (FileInfo? file)
         {
             var initialText = string.Empty;
 
@@ -317,7 +394,7 @@ public class Notepad : Scenario
                 initialText = System.IO.File.ReadAllText (file.FullName);
             }
 
-            return new TextView
+            TextView = new TextView
             {
                 X = 0,
                 Y = 0,
@@ -326,63 +403,77 @@ public class Notepad : Scenario
                 Text = initialText,
                 TabKeyAddsTab = false
             };
+
+            _savedText = initialText;
+
+            Add (TextView);
         }
 
-        public FileInfo? File { get; set; }
-
-        public void RegisterTextViewEvents (TabView parent)
+        /// <summary>Loads a file into an existing tab, replacing its content.</summary>
+        public void LoadFile (FileInfo file)
         {
-            if (View is not TextView textView)
+            if (TextView is null)
+            {
+                return;
+            }
+
+            var text = string.Empty;
+
+            if (file.Exists)
+            {
+                text = System.IO.File.ReadAllText (file.FullName);
+            }
+
+            // Set _savedText first so the ContentsChanged handler sees matching text (not dirty).
+            _savedText = text;
+            TextView.Text = text;
+        }
+
+        public void RegisterTextViewEvents ()
+        {
+            if (TextView is null)
             {
                 return;
             }
 
             // when user makes changes rename tab to indicate unsaved
-            textView.ContentsChanged += (_, _) =>
+            TextView.ContentsChanged += (_, _) =>
                                         {
                                             // if current text doesn't match saved text
                                             bool areDiff = UnsavedChanges;
 
                                             if (areDiff)
                                             {
-                                                if (!DisplayText.EndsWith ('*'))
+                                                if (!Title.EndsWith ('*'))
                                                 {
-                                                    DisplayText = Text + '*';
+                                                    Title = Title + "*";
                                                 }
                                             }
                                             else
                                             {
-                                                if (DisplayText.EndsWith ('*'))
+                                                if (Title.EndsWith ('*'))
                                                 {
-                                                    DisplayText = Text.TrimEnd ('*');
+                                                    Title = Title.TrimEnd ('*');
                                                 }
                                             }
 
-                                            if (_notepad.LenShortcut is { })
-                                            {
-                                                _notepad.LenShortcut.Title = $"Len:{textView.Text.Length}";
-                                            }
+                                            notepad.LenShortcut?.Title = $"Len:{TextView.Text.Length}";
                                         };
         }
 
-        /// <summary>The text of the tab the last time it was saved</summary>
-        public string? SavedText { get; set; }
-
-        public bool UnsavedChanges => View is { } && !string.Equals (SavedText, View.Text);
-
         internal void Save ()
         {
-            if (View is null || File is null || string.IsNullOrWhiteSpace (File.FullName))
+            if (TextView is null || File is null || string.IsNullOrWhiteSpace (File.FullName))
             {
                 return;
             }
 
-            string newText = View.Text;
+            string newText = TextView.Text;
 
             System.IO.File.WriteAllText (File.FullName, newText);
-            SavedText = newText;
+            _savedText = newText;
 
-            DisplayText = DisplayText.TrimEnd ('*');
+            Title = Title.TrimEnd ('*');
         }
     }
 }

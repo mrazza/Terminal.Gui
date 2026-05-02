@@ -4,7 +4,6 @@ using System.Diagnostics;
 
 namespace Terminal.Gui.ViewBase;
 
-
 /// <summary>
 ///     View is the base class for all visible elements. View can render itself and
 ///     contains zero or more nested views, called SubViews. View provides basic functionality for layout, arrangement, and
@@ -37,10 +36,12 @@ namespace Terminal.Gui.ViewBase;
 ///             <term>Mouse Event</term> <description>Action</description>
 ///         </listheader>
 ///         <item>
-///             <term>Left Button Released</term> <description>Activates the view (<see cref="Command.Activate"/>).</description>
+///             <term>Left Button Released</term>
+///             <description>Activates the view (<see cref="Command.Activate"/>).</description>
 ///         </item>
 ///         <item>
-///             <term>Ctrl+Left Button Released</term> <description>Opens the context menu (<see cref="Command.Context"/>).</description>
+///             <term>Ctrl+Left Button Released</term>
+///             <description>Opens the context menu (<see cref="Command.Context"/>).</description>
 ///         </item>
 ///     </list>
 /// </remarks>
@@ -154,11 +155,11 @@ public partial class View : IDisposable, ISupportInitializeNotification
     ///         of the View hierarchy (the top-most SuperView).
     ///     </para>
     /// </remarks>
-    public IApplication? App { get => GetApp (); internal set => _app = value; }
+    public IApplication? App { get => GetApp (); set => _app = value; }
 
     /// <summary>
     ///     Gets the <see cref="IApplication"/> instance this view is running in. Used internally to allow overrides by
-    ///     <see cref="Adornment"/>.
+    ///     <see cref="IAdornment"/>.
     /// </summary>
     /// <returns>
     ///     If this view is at the top of the view hierarchy, and <see cref="App"/> was not explicitly set,
@@ -177,7 +178,7 @@ public partial class View : IDisposable, ISupportInitializeNotification
 
     /// <summary>
     ///     Gets the <see cref="IDriver"/> instance for this view. Used internally to allow overrides by
-    ///     <see cref="Adornment"/>.
+    ///     <see cref="IAdornment"/>.
     /// </summary>
     /// <returns>If this view is at the top of the view hierarchy, returns <see langword="null"/>.</returns>
     protected virtual IDriver? GetDriver () => _driver ?? App?.Driver ?? SuperView?.Driver /*?? ApplicationImpl.Instance.Driver*/;
@@ -301,6 +302,9 @@ public partial class View : IDisposable, ISupportInitializeNotification
         UpdateTextDirection (TextDirection);
         UpdateTextFormatterText ();
 
+        // Force a layout each time a View is initialized
+        Layout ();
+
         foreach (View view in InternalSubViews)
         {
             if (!view.IsInitialized)
@@ -308,12 +312,6 @@ public partial class View : IDisposable, ISupportInitializeNotification
                 view.EndInit ();
             }
         }
-
-        // Force a layout each time a View is initialized
-        // BUGBUG: This Layout call is a hack to work around some bug in Layout.
-        // BUGBUG: See https://github.com/gui-cs/Terminal.Gui/issues/4522
-        // See: https://github.com/gui-cs/Terminal.Gui/issues/3951
-        Layout (); // the EventLog in AllViewsTester fails to layout correctly if this is not here
 
         // Complex layout scenarios (e.g. DimAuto and PosAlign) may require multiple layouts to be performed.
         // Thus, we call SetNeedsLayout() to ensure that the layout is performed at least once.
@@ -352,7 +350,10 @@ public partial class View : IDisposable, ISupportInitializeNotification
             OnEnabledChanged ();
             SetNeedsDraw ();
 
-            Border?.Enabled = field;
+            if (Border.View is { } bev)
+            {
+                bev.Enabled = field;
+            }
 
             foreach (View view in InternalSubViews)
             {
@@ -485,8 +486,7 @@ public partial class View : IDisposable, ISupportInitializeNotification
     internal TextFormatter TitleTextFormatter { get; init; } = new ();
 
     /// <summary>
-    ///     The title to be displayed for this <see cref="View"/>. The title will be displayed if <see cref="Border"/>.
-    ///     <see cref="Thickness.Top"/> is greater than 0. The title can be used to set the <see cref="HotKey"/>
+    ///     The title to be displayed for this <see cref="View"/>. The title can be used to set the <see cref="HotKey"/>
     ///     for the view by prefixing character with <see cref="HotKeySpecifier"/> (e.g. <c>"T_itle"</c>).
     /// </summary>
     /// <remarks>
@@ -500,6 +500,19 @@ public partial class View : IDisposable, ISupportInitializeNotification
     ///     <para>
     ///         To cause the hotkey to be rendered with <see cref="Text"/>,
     ///         set <c>View.</c><see cref="TextFormatter.HotKeySpecifier"/> to the desired character.
+    ///     </para>
+    ///     <para>
+    ///         When <see cref="Border"/> is configured with <see cref="BorderSettings.Title"/> and
+    ///         <see cref="IAdornment.Thickness"/>.
+    ///         <see cref="Thickness.Top"/> is greater than 0 the Title will be displayed.
+    ///     </para>
+    ///     <para>
+    ///         When <see cref="Border"/> is configured with <see cref="BorderSettings.TerminalTitle"/>, and the View is a
+    ///         <see cref="Runnable"/>
+    ///         the Title will be rendered in the
+    ///         terminal's title bar using OSC 0..2 sequences when the View is Modal (see <see cref="IRunnable.IsModal"/>).
+    ///         In this case, hotkey specifiers will not be displayed in the terminal's title bar.
+    ///         See <see cref="IDriver.SetTerminalTitle"/> for more information.
     ///     </para>
     /// </remarks>
     /// <value>The title.</value>

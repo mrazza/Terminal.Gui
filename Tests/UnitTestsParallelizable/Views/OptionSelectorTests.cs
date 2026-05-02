@@ -206,8 +206,9 @@ public class OptionSelectorTests
         Assert.Equal (CheckState.UnChecked, optionSelector.SubViews.OfType<CheckBox> ().First (cb => cb.Title == "Option1").Value);
     }
 
+    // Copilot
     [Fact]
-    public void Key_Space_On_Activated_Cycles ()
+    public void Key_Space_On_Activated_Does_Nothing ()
     {
         OptionSelector optionSelector = new ();
         List<string> options = ["Option1", "Option2"];
@@ -219,11 +220,12 @@ public class OptionSelectorTests
         Assert.Equal (0, optionSelector.Value);
         Assert.Equal (CheckState.Checked, checkBox.Value);
 
+        // Space on an already-selected option is a no-op (no cycling)
         checkBox.NewKeyDownEvent (Key.Space);
 
-        Assert.Equal (1, optionSelector.Value);
-        Assert.Equal (CheckState.UnChecked, checkBox.Value);
-        Assert.Equal (CheckState.Checked, optionSelector.SubViews.OfType<CheckBox> ().First (cb => cb.Title == "Option2").Value);
+        Assert.Equal (0, optionSelector.Value);
+        Assert.Equal (CheckState.Checked, checkBox.Value);
+        Assert.Equal (CheckState.UnChecked, optionSelector.SubViews.OfType<CheckBox> ().First (cb => cb.Title == "Option2").Value);
     }
 
     [Fact]
@@ -482,8 +484,8 @@ public class OptionSelectorTests
         Assert.True (checkBoxes [1].HasFocus);
     }
 
-    // Claude - Opus 4.6
-    // Per OptionSelector spec: Space key cycles to next option
+    // Copilot
+    // Programmatic Activate on OptionSelector (no CheckBox source) cycles to next option
     [Fact]
     public void OptionSelector_Command_Activate_ForwardsToFocusedCheckBox ()
     {
@@ -495,7 +497,7 @@ public class OptionSelectorTests
 
         Assert.Equal (0, optionSelector.Value);
 
-        // Activate should DispatchDown to the focused CheckBox, triggering Cycle
+        // Activate without a CheckBox source cycles (same as HotKey)
         optionSelector.InvokeCommand (Command.Activate);
 
         Assert.Equal (1, optionSelector.Value);
@@ -1066,6 +1068,105 @@ public class OptionSelectorTests
         Assert.Equal ((int?)1, capturedValue as int?); // Must be the OptionSelector's index
 
         ancestor.Dispose ();
+    }
+
+    #endregion
+
+    #region OptionSelector<TEnum> Tests
+
+    private enum TestEnumZero
+    {
+        Alpha,
+        Beta,
+        Gamma
+    }
+
+    private enum TestEnumNonZero
+    {
+        Alpha = 1,
+        Beta = 2,
+        Gamma = 3
+    }
+
+    private enum TestEnumSparse
+    {
+        Low = 5,
+        Mid = 10,
+        High = 20
+    }
+
+    [Fact]
+    // Copilot
+    public void Generic_Initialization_ZeroBased_FirstCheckBoxIsChecked ()
+    {
+        OptionSelector<TestEnumZero> selector = new ();
+
+        Assert.Equal (TestEnumZero.Alpha, selector.Value);
+        Assert.Equal (0, ((OptionSelector)selector).Value);
+
+        List<int> expectedValues = [0, 1, 2];
+        Assert.Equal (expectedValues, selector.Values);
+
+        CheckBox first = selector.SubViews.OfType<CheckBox> ().First (cb => selector.GetCheckBoxValue (cb) == 0);
+        Assert.Equal (CheckState.Checked, first.Value);
+    }
+
+    [Fact]
+    // Copilot
+    public void Generic_Initialization_NonZeroBased_FirstCheckBoxIsChecked ()
+    {
+        OptionSelector<TestEnumNonZero> selector = new ();
+
+        Assert.Equal (TestEnumNonZero.Alpha, selector.Value);
+        Assert.Equal (1, ((OptionSelector)selector).Value);
+
+        List<int> expectedValues = [1, 2, 3];
+        Assert.Equal (expectedValues, selector.Values);
+
+        CheckBox first = selector.SubViews.OfType<CheckBox> ().First (cb => selector.GetCheckBoxValue (cb) == 1);
+        Assert.Equal (CheckState.Checked, first.Value);
+
+        // Other checkboxes should be unchecked
+        foreach (CheckBox cb in selector.SubViews.OfType<CheckBox> ().Where (cb => selector.GetCheckBoxValue (cb) != 1))
+        {
+            Assert.Equal (CheckState.UnChecked, cb.Value);
+        }
+    }
+
+    [Fact]
+    // Copilot
+    public void Generic_Initialization_SparseEnum_FirstCheckBoxIsChecked ()
+    {
+        OptionSelector<TestEnumSparse> selector = new ();
+
+        Assert.Equal (TestEnumSparse.Low, selector.Value);
+        Assert.Equal (5, ((OptionSelector)selector).Value);
+
+        List<int> expectedValues = [5, 10, 20];
+        Assert.Equal (expectedValues, selector.Values);
+
+        CheckBox first = selector.SubViews.OfType<CheckBox> ().First (cb => selector.GetCheckBoxValue (cb) == 5);
+        Assert.Equal (CheckState.Checked, first.Value);
+    }
+
+    [Fact]
+    // Copilot
+    public void Generic_Initialization_HasCorrectLabels ()
+    {
+        OptionSelector<TestEnumZero> selector = new ();
+
+        List<string> expectedLabels = ["Alpha", "Beta", "Gamma"];
+        Assert.Equal (expectedLabels, selector.Labels);
+        Assert.Equal (3, selector.SubViews.OfType<CheckBox> ().Count ());
+    }
+
+    [Fact]
+    // Copilot
+    public void Generic_Values_Set_Throws ()
+    {
+        OptionSelector<TestEnumZero> selector = new ();
+
+        Assert.Throws<InvalidOperationException> (() => selector.Values = [1, 2]);
     }
 
     #endregion

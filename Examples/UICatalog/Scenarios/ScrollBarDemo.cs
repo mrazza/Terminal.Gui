@@ -26,7 +26,7 @@ public class ScrollBarDemo : Scenario
             SchemeName = "Base",
             Arrangement = ViewArrangement.Resizable
         };
-        demoFrame.Padding!.Thickness = new Thickness (1);
+        demoFrame.Padding.Thickness = new Thickness (1);
         demoFrame.Padding.Diagnostics = ViewDiagnosticFlags.Ruler;
         window.Add (demoFrame);
 
@@ -64,8 +64,8 @@ public class ScrollBarDemo : Scenario
                                                if (e.NewValue < 1
                                                    || e.NewValue
                                                    > (scrollBar.Orientation == Orientation.Vertical
-                                                          ? scrollBar.SuperView?.GetContentSize ().Width
-                                                          : scrollBar.SuperView?.GetContentSize ().Height))
+                                                          ? scrollBar.SuperView?.GetContentWidth ()
+                                                          : scrollBar.SuperView?.GetContentHeight ()))
                                                {
                                                    e.Handled = true;
 

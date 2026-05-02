@@ -5,9 +5,9 @@ using System;
 namespace UICatalog.Scenarios;
 
 [ScenarioMetadata ("RuneWidthGreaterThanOne", "Test rune width greater than one")]
-[ScenarioCategory ("Controls")]
 [ScenarioCategory ("Text and Formatting")]
 [ScenarioCategory ("Tests")]
+[ScenarioCategory ("Unicode")]
 public class RuneWidthGreaterThanOne : Scenario
 {
     private IApplication? _app;
@@ -85,7 +85,7 @@ public class RuneWidthGreaterThanOne : Scenario
                         {
                             if (_win is not null)
                             {
-                                _win.Padding!.Thickness = new (1);
+                                _win.Padding.Thickness = new (1);
                             }
                         }
                     },
@@ -96,7 +96,7 @@ public class RuneWidthGreaterThanOne : Scenario
                         {
                             if (_win is not null)
                             {
-                                _win.Padding!.Thickness = new (0);
+                                _win.Padding.Thickness = new (0);
                             }
                         }
                     }

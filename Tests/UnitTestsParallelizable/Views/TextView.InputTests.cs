@@ -183,6 +183,116 @@ public class TextViewInputTests
         Assert.False (tv.IsSelecting);
     }
 
+    [Fact]
+    public void KittyAssociatedText_ShiftedPrintableKey_InsertsAssociatedText ()
+    {
+        using IApplication app = Application.Create ();
+        using Runnable<bool> runnable = new ();
+
+        TextView tv = new () { Width = 10, Height = 2 };
+
+        runnable.Add (tv);
+        app.Begin (runnable);
+
+        Key kittyKey = new ('!') { AssociatedText = "!" };
+
+        Assert.True (tv.NewKeyDownEvent (kittyKey));
+        Assert.Equal ("!", tv.Text);
+        Assert.Equal (new Point (1, 0), tv.InsertionPoint);
+    }
+
+    [Fact]
+    public void KittyAltGrModifierOnly_DoesNotInsertPrivateUseRune ()
+    {
+        using IApplication app = Application.Create ();
+        using Runnable<bool> runnable = new ();
+
+        TextView tv = new () { Width = 10, Height = 2 };
+
+        runnable.Add (tv);
+        app.Begin (runnable);
+
+        Key kittyKey = new () { ModifierKey = ModifierKey.AltGr };
+
+        Assert.False (tv.NewKeyDownEvent (kittyKey));
+        Assert.Equal (string.Empty, tv.Text);
+        Assert.Equal (Point.Empty, tv.InsertionPoint);
+    }
+
+    [Fact]
+    public void KittyAltGr5_InsertsEuroSymbol ()
+    {
+        using IApplication app = Application.Create ();
+        using Runnable<bool> runnable = new ();
+
+        TextView tv = new () { Width = 10, Height = 2 };
+
+        runnable.Add (tv);
+        app.Begin (runnable);
+
+        Key? key = new KittyKeyboardPattern ().GetKey ("\u001b[8364;1:1u");
+
+        Assert.NotNull (key);
+        Assert.True (tv.NewKeyDownEvent (key));
+        Assert.Equal ("€", tv.Text);
+        Assert.Equal (new Point (1, 0), tv.InsertionPoint);
+    }
+
+    [Fact]
+    public void KittyAltGrE_InsertsEuroSymbol ()
+    {
+        using IApplication app = Application.Create ();
+        using Runnable<bool> runnable = new ();
+
+        TextView tv = new () { Width = 10, Height = 2 };
+
+        runnable.Add (tv);
+        app.Begin (runnable);
+
+        Key? key = new KittyKeyboardPattern ().GetKey ("\u001b[8364;1:1u");
+
+        Assert.NotNull (key);
+        Assert.True (tv.NewKeyDownEvent (key));
+        Assert.Equal ("€", tv.Text);
+        Assert.Equal (new Point (1, 0), tv.InsertionPoint);
+    }
+
+    [Fact]
+    public void KittyAltGr2_InsertsAtSign ()
+    {
+        using IApplication app = Application.Create ();
+        using Runnable<bool> runnable = new ();
+
+        TextView tv = new () { Width = 10, Height = 2 };
+
+        runnable.Add (tv);
+        app.Begin (runnable);
+
+        Key? key = new KittyKeyboardPattern ().GetKey ("\u001b[64::50;;64u");
+
+        Assert.NotNull (key);
+        Assert.True (tv.NewKeyDownEvent (key));
+        Assert.Equal ("@", tv.Text);
+        Assert.Equal (new Point (1, 0), tv.InsertionPoint);
+    }
+
+    [Fact]
+    public void InsertText_GraphemeSequence_PreservesSingleGrapheme ()
+    {
+        using IApplication app = Application.Create ();
+        using Runnable<bool> runnable = new ();
+
+        TextView tv = new () { Width = 10, Height = 2 };
+
+        runnable.Add (tv);
+        app.Begin (runnable);
+
+        tv.InsertText ("👨‍👩‍👧‍👦");
+
+        Assert.Equal ("👨‍👩‍👧‍👦", tv.Text);
+        Assert.Equal (new Point (1, 0), tv.InsertionPoint);
+    }
+
     // CoPilot - decomposed from KeyBindings_Command test
     [Fact]
     public void Backspace_Deletes_Previous_Character ()
@@ -355,6 +465,54 @@ public class TextViewInputTests
         }
 
         Assert.Equal (expectedColumn, visualColumn);
+    }
+
+    [Fact]
+    public void Typing_Tab_At_End_Of_Line_With_Wrap_Disabled_Should_Scroll_Horizontally_And_Update_Content_Size ()
+    {
+        TextView tv = new ()
+        {
+            Width = 5,
+            Height = 2,
+            Text = "Line1\nLine2\nLine3"
+        };
+        tv.BeginInit ();
+        tv.EndInit ();
+
+        tv.InsertionPoint = new Point (6, 0);
+        Assert.Equal (new Point (1, 0), tv.Viewport.Location);
+        Assert.Equal (new Point (5, 0), tv.InsertionPoint);
+        Assert.Equal (new Size (6, 3), tv.GetContentSize ());
+
+        tv.NewKeyDownEvent (Key.Tab);
+
+        Assert.Equal (new Point (4, 0), tv.Viewport.Location);
+        Assert.Equal (new Point (6, 0), tv.InsertionPoint);
+        Assert.Equal (new Size (9, 3), tv.GetContentSize ());
+    }
+
+    [Fact]
+    public void Typing_ShiftTab_At_End_Of_Line_With_Wrap_Disabled_Should_Scroll_Horizontally_And_Update_Content_Size ()
+    {
+        TextView tv = new ()
+        {
+            Width = 5,
+            Height = 2,
+            Text = "Line1\t\nLine2\nLine3"
+        };
+        tv.BeginInit ();
+        tv.EndInit ();
+
+        tv.InsertionPoint = new Point (9, 0);
+        Assert.Equal (new Point (4, 0), tv.Viewport.Location);
+        Assert.Equal (new Point (6, 0), tv.InsertionPoint);
+        Assert.Equal (new Size (9, 3), tv.GetContentSize ());
+
+        tv.NewKeyDownEvent (Key.Tab.WithShift);
+
+        Assert.Equal (new Point (1, 0), tv.Viewport.Location);
+        Assert.Equal (new Point (5, 0), tv.InsertionPoint);
+        Assert.Equal (new Size (6, 3), tv.GetContentSize ());
     }
 
     [Fact]

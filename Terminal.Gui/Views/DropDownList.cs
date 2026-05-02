@@ -96,7 +96,7 @@ public class DropDownList : TextField
     /// </summary>
     public new static Dictionary<Command, PlatformKeyBinding>? DefaultKeyBindings { get; set; } = new ()
     {
-        [Command.Toggle] = Bind.All (Key.F4, Key.CursorDown.WithAlt),
+        [Command.Toggle] = Bind.All (Key.F4, Key.CursorDown.WithAlt)
     };
 
     private readonly Button? _toggleButton;
@@ -118,7 +118,7 @@ public class DropDownList : TextField
             TabStop = TabBehavior.NoStop,
             NoPadding = true,
             NoDecorations = true,
-            ShadowStyle = ShadowStyle.None
+            ShadowStyle = null
         };
 
 #if DEBUG
@@ -146,18 +146,25 @@ public class DropDownList : TextField
 
                                              return Math.Min (Source?.Count ?? 0, Math.Max (1, available));
                                          })),
-
             ViewportSettings = ViewportSettingsFlags.HasVerticalScrollBar
         };
 
         // Create popover
         _listPopover = new Popover<ListView, string?> (listView) { Anchor = GetAnchor };
 
-        // Ensure the background of the listview is not None, so it stands out
-        Scheme scheme = GetScheme () with { Normal = GetScheme ().Normal with { Background = GetScheme ().Focus.Foreground } };
+        // This ensures the Normal attribute is always that of the host
+        _listPopover.GettingAttributeForRole += (sender, args) =>
+                                                {
+                                                    if (sender is not View view || args.Role != VisualRole.Normal)
+                                                    {
+                                                        return;
+                                                    }
 
-        // Use the TextField's scheme for the ListView to ensure consistent styling
-        _listPopover.ContentView?.SetScheme (scheme);
+                                                    Attribute? res = App?.TopRunnableView?.MostFocused?.GetAttributeForRole (VisualRole.Normal);
+                                                    args.Handled = true;
+
+                                                    args.Result = res;
+                                                };
 
 #if DEBUG
         _listPopover.Id = "dropDownListPopover";
@@ -169,8 +176,8 @@ public class DropDownList : TextField
         _listPopover.Anchor = GetAnchor;
 
         // Add toggle button to Padding
-        Padding?.Thickness = Padding.Thickness with { Right = 1 }; // Add some spacing on the right for the button
-        Padding!.Add (_toggleButton);
+        Padding.Thickness = Padding.Thickness with { Right = 1 }; // Add some spacing on the right for the button
+        Padding.GetOrCreateView ().Add (_toggleButton);
 
         // Adjust TextField width to account for toggle button
         Width = Dim.Auto (minimumContentDim: Dim.Func (_ => _listPopover.ContentView?.MaxItemLength ?? 0));
@@ -181,7 +188,7 @@ public class DropDownList : TextField
         // Apply layered key bindings (base View layer + DropDownList-specific layer)
         ApplyKeyBindings (View.DefaultKeyBindings, DefaultKeyBindings);
 
-        MouseBindings.Add (MouseFlags.LeftButtonClicked, Command.Activate);
+        MouseBindings.Add (MouseFlags.LeftButtonPressed, Command.Activate);
     }
 
     /// <inheritdoc/>
@@ -191,6 +198,19 @@ public class DropDownList : TextField
         _listPopover?.Target = new WeakReference<View> (this);
 
         base.EndInit ();
+    }
+
+    /// <inheritdoc/>
+    protected override bool OnMouseEvent (Mouse ev)
+    {
+        if (!ReadOnly || !ev.Flags.FastHasFlags (MouseFlags.LeftButtonPressed))
+        {
+            return base.OnMouseEvent (ev);
+        }
+
+        App?.Popovers?.Register (_listPopover);
+
+        return InvokeCommand (Command.Activate) is true;
     }
 
     /// <inheritdoc/>

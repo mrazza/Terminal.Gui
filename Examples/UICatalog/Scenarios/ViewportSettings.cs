@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 namespace UICatalog.Scenarios;
 
 [ScenarioMetadata ("ViewportSettings", "Demonstrates manipulating Viewport, ViewportSettings, and ContentSize to scroll content")]
@@ -16,7 +16,7 @@ public class ViewportSettings : Scenario
 
         using Window mainWindow = new ();
         mainWindow.Title = GetQuitKeyAndName (); // Use a different colorscheme so ViewSettings.ClearContentOnly is obvious
-        mainWindow.SchemeName = "Runnable";
+        mainWindow.SchemeName = SchemeManager.SchemesToSchemeName (Schemes.Accent);
         mainWindow.BorderStyle = LineStyle.None;
 
         AdornmentsEditor adornmentsEditor = new ()
@@ -63,7 +63,7 @@ public class ViewportSettings : Scenario
         {
             X = Pos.Center (),
             Y = 17,
-            Width = Dim.Auto (DimAutoStyle.Content, maximumContentDim: Dim.Func (_ => view.GetContentSize ().Width)),
+            Width = Dim.Auto (DimAutoStyle.Content, maximumContentDim: Dim.Func (_ => view.GetContentWidth ())),
             Height = Dim.Auto (DimAutoStyle.Content, maximumContentDim: Dim.Percent (20))
         };
 
@@ -72,13 +72,8 @@ public class ViewportSettings : Scenario
         Button buttonAnchored = new () { X = Pos.AnchorEnd (), Y = Pos.AnchorEnd (), Text = "Bottom Rig_ht" };
         buttonAnchored.Accepting += (sender, _) => MessageBox.Query ((sender as View)?.App!, "Hi", $"You pressed {((Button)sender!).Text}", Strings.btnOk);
 
-        view.Margin!.Data = "Margin";
-        view.Margin!.Thickness = new Thickness (0);
-
-        view.Border!.Data = "Border";
-        view.Border!.Thickness = new Thickness (3);
-
-        view.Padding!.Data = "Padding";
+        view.Margin.Thickness = new Thickness (0);
+        view.Border.Thickness = new Thickness (3);
 
         view.Add (buttonAnchored, textField, colorPicker, charMap);
 
@@ -185,7 +180,7 @@ internal class ViewportSettingsDemoView : FrameView
 
         // Add a status label to the border that shows Viewport and ContentSize values. Bit of a hack.
         // TODO: Move to Padding with controls
-        Border?.Add (new Label { X = 20 });
+        Border.GetOrCreateView ().Add (new Label { X = 20 });
 
         ViewportChanged += VirtualDemoView_LayoutComplete;
 
@@ -221,7 +216,7 @@ internal class ViewportSettingsDemoView : FrameView
 
     private void VirtualDemoView_LayoutComplete (object? sender, DrawEventArgs drawEventArgs)
     {
-        Label? frameLabel = Padding?.SubViews.OfType<Label> ().FirstOrDefault ();
+        Label? frameLabel = Padding.View?.SubViews.OfType<Label> ().FirstOrDefault ();
 
         if (frameLabel is { })
         {

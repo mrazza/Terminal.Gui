@@ -33,10 +33,12 @@ namespace Terminal.Gui.Views;
 ///             <term>Mouse Event</term> <description>Action</description>
 ///         </listheader>
 ///         <item>
-///             <term>Click</term> <description>Selects the clicked codepoint (<see cref="Command.Activate"/>).</description>
+///             <term>Click</term>
+///             <description>Selects the clicked codepoint (<see cref="Command.Activate"/>).</description>
 ///         </item>
 ///         <item>
-///             <term>Double-Click</term> <description>Accepts the clicked codepoint (<see cref="Command.Accept"/>).</description>
+///             <term>Double-Click</term>
+///             <description>Accepts the clicked codepoint (<see cref="Command.Accept"/>).</description>
 ///         </item>
 ///         <item>
 ///             <term>Right-Click / Ctrl+Click</term> <description>Opens the context menu.</description>
@@ -113,7 +115,7 @@ public class CharMap : View, IDesignable, IValue<Rune>
         HorizontalScrollBar.Increment = COLUMN_WIDTH;
 
         // This prevents scrolling past the last column
-        HorizontalScrollBar.ScrollableContentSize = GetContentSize ().Width - RowLabelWidth;
+        HorizontalScrollBar.ScrollableContentSize = GetContentWidth () - RowLabelWidth;
         HorizontalScrollBar.X = RowLabelWidth;
         HorizontalScrollBar.Y = Pos.AnchorEnd ();
         HorizontalScrollBar.Width = Dim.Fill (1);
@@ -128,7 +130,7 @@ public class CharMap : View, IDesignable, IValue<Rune>
         // So, we do it manually on ViewportChanged events.
         ViewportChanged += (_, _) =>
                            {
-                               HorizontalScrollBar.Visible = Viewport.Width < GetContentSize ().Width;
+                               HorizontalScrollBar.Visible = Viewport.Width < GetContentWidth ();
                                UpdateCursor ();
                            };
 
@@ -139,7 +141,7 @@ public class CharMap : View, IDesignable, IValue<Rune>
 
         // The scrollbars are in the Padding. VisualRole.Focus/Active are used to draw the
         // CharMap headers. Override Padding to force it to draw to match.
-        Padding!.GettingAttributeForRole += PaddingOnGettingAttributeForRole;
+        Padding.View!.GettingAttributeForRole += PaddingOnGettingAttributeForRole;
 
         // Build initial visible rows (all rows with at least one valid codepoint)
         RebuildVisibleRows ();
@@ -211,7 +213,7 @@ public class CharMap : View, IDesignable, IValue<Rune>
         SetContentSize (new Size (COLUMN_WIDTH * 16 + RowLabelWidth, _visibleRowStarts.Count * _rowHeight + HEADER_HEIGHT));
 
         // Keep vertical scrollbar aligned with new content size
-        VerticalScrollBar.ScrollableContentSize = GetContentSize ().Height;
+        VerticalScrollBar.ScrollableContentSize = GetContentHeight ();
     }
 
     private int VisibleRowIndexForCodePoint (int codePoint)
@@ -1018,9 +1020,9 @@ public class CharMap : View, IDesignable, IValue<Rune>
         // ony as long as the popover is visible.
         // Note, for ephemeral Popovers, hotkeys are not supported.
         PopoverMenu contextMenu = new ([
-                                            new MenuItem (Strings.charMapCopyGlyph, string.Empty, CopyGlyph),
-                                            new MenuItem (Strings.charMapCopyCP, string.Empty, CopyCodePoint)
-                                        ]);
+                                           new MenuItem (Strings.charMapCopyGlyph, string.Empty, CopyGlyph),
+                                           new MenuItem (Strings.charMapCopyCP, string.Empty, CopyCodePoint)
+                                       ]);
 
         // Registering with the PopoverManager will ensure that the context menu is closed when the view is no longer focused
         // and the context menu is disposed when it is closed.

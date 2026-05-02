@@ -6,7 +6,7 @@ public partial class TextField
     ///     Provides autocomplete context menu based on suggestions at the current cursor position. Configure
     ///     <see cref="ISuggestionGenerator"/> to enable this feature.
     /// </summary>
-    public IAutocomplete Autocomplete { get; set; }
+    public IAutocomplete? Autocomplete { get; set; }
 
     private void ProcessAutocomplete ()
     {
@@ -30,9 +30,9 @@ public partial class TextField
         List<Cell> currentLine = Cell.ToCellList (Text);
         int cursorPosition = Math.Min (InsertionPoint, currentLine.Count);
 
-        Autocomplete.Context = new AutocompleteContext (currentLine, cursorPosition, Autocomplete.Context?.Canceled ?? false);
+        Autocomplete?.Context = new AutocompleteContext (currentLine, cursorPosition, Autocomplete.Context?.Canceled ?? false);
 
-        Autocomplete.GenerateSuggestions (Autocomplete.Context);
+        Autocomplete?.GenerateSuggestions (Autocomplete.Context);
     }
 
     /// <inheritdoc/>
@@ -52,7 +52,7 @@ public partial class TextField
     protected override bool OnKeyDown (Key key)
     {
         // Give autocomplete first opportunity to respond to key presses
-        if (SelectedLength == 0 && Autocomplete.Suggestions.Count > 0 && Autocomplete.ProcessKey (key))
+        if (SelectedLength == 0 && Autocomplete?.Suggestions.Count > 0 && Autocomplete.ProcessKey (key))
         {
             return true;
         }
@@ -68,8 +68,22 @@ public partial class TextField
         // Needed for the Elmish Wrapper issue https://github.com/DieselMeister/Terminal.Gui.Elmish/issues/2
         _preChangeInsertionPoint = _insertionPoint;
 
+        if (a.AsRune is { } rune && rune != default (Rune) && Rune.IsControl (rune))
+        {
+            return false;
+        }
+
+        // Never insert modified keys, except for AltGr combinations with associated text of the unmodified key.
+        // This allows users to input characters that require AltGr (e.g. '@' on a Portuguese keyboard which is AltGr+2 with associated text "@"),
+        // while still preventing most modified keys from being inserted into the TextField.
+        if ((a.IsAlt && string.IsNullOrEmpty (a.AsGrapheme)) || a.IsCtrl)
+        {
+            // Never insert modified keys
+            return false;
+        }
+
         // Ignore other control characters.
-        if (a is { IsKeyCodeAtoZ: false, KeyCode: < KeyCode.Space or > KeyCode.CharMask })
+        if (string.IsNullOrEmpty (a.AsGrapheme) && a is { IsKeyCodeAtoZ: false, KeyCode: < KeyCode.Space or > KeyCode.CharMask })
         {
             return false;
         }
@@ -91,16 +105,16 @@ public partial class TextField
 
         if (SuperView is { })
         {
-            if (Autocomplete.HostControl is { })
+            if (Autocomplete?.HostControl is { })
             {
                 return;
             }
-            Autocomplete.HostControl = this;
-            Autocomplete.PopupInsideContainer = false;
+            Autocomplete?.HostControl = this;
+            Autocomplete?.PopupInsideContainer = false;
         }
         else
         {
-            Autocomplete.HostControl = null;
+            Autocomplete?.HostControl = null;
         }
     }
 }

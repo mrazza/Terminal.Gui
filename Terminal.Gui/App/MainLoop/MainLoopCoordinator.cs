@@ -108,6 +108,21 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
 
         _stopCalled = true;
 
+        // Restore terminal kitty keyboard mode before shutting down output resources.
+
+        try
+        {
+            if (_driver is { KittyKeyboardCapabilities.IsSupported: true })
+            {
+                KittyKeyboardProtocolDetector kittyKeyboardDetector = new (_driver);
+                kittyKeyboardDetector.Disable ();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.Warning ($"Kitty keyboard protocol disable failed: {ex.Message}");
+        }
+
         _runCancellationTokenSource.Cancel ();
         _output?.Dispose ();
 
@@ -133,7 +148,23 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
         {
             return;
         }
-        _driver = new DriverImpl (_componentFactory, _inputProcessor, _loop.OutputBuffer, _output, _loop.AnsiRequestScheduler, _loop.SizeMonitor);
+        AnsiStartupGate? startupGate = app?.AnsiStartupGate;
+
+        _driver = new DriverImpl (_componentFactory, _inputProcessor, _loop.OutputBuffer, _output, _loop.AnsiRequestScheduler, _loop.SizeMonitor, startupGate);
+
+        // Set the driver's AppModel from the application instance so it doesn't rely on the static.
+        if (app is { })
+        {
+            _driver.AppModel = app.AppModel;
+        }
+
+        // Wire up the inline screen callback so AnsiOutput can read the row offset
+        // and dimensions from App.Screen for cursor positioning and exit cleanup.
+        if (_output is AnsiOutput ansiOutput && app is { })
+        {
+            IApplication appRef = app;
+            ansiOutput.AppScreenGetter = () => appRef.Screen;
+        }
 
         // Initialize the size monitor now that the driver is fully constructed
         // This allows size monitors to set up platform-specific mechanisms:
@@ -142,12 +173,13 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
         // - Console events (WindowsDriver)
         _loop.SizeMonitor.Initialize (_driver);
 
-        app!.Driver = _driver;
+        app?.Driver = _driver;
 
         // Detect terminal color capabilities from environment variables
         TerminalColorCapabilities caps = TerminalEnvironmentDetector.DetectColorCapabilities ();
 
         _driver.SetColorCapabilities (caps);
+        _driver.InitializeProgressIndicator ();
 
         if (caps.Capability is ColorCapabilityLevel.NoColor or ColorCapabilityLevel.Colors16)
         {
@@ -160,7 +192,7 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
         {
             try
             {
-                TerminalColorDetector colorDetector = new (_driver);
+                TerminalColorDetector colorDetector = new (_driver, startupGate);
 
                 colorDetector.Detect ((fg, bg) =>
                                       {
@@ -169,9 +201,10 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
                                               return;
                                           }
 
-                                          Logging.Trace ($"app: SetDefaultAttribute ({new Attribute (fg ?? new Color (255, 255, 255), bg ?? new Color (0, 0))})");
+                                          Attribute attribute = new (fg ?? new Color (255, 255, 255), bg ?? new Color (0, 0));
+                                          Logging.Trace ($"app: SetDefaultAttribute ({attribute})");
 
-                                          _driver.SetDefaultAttribute (new Attribute (fg ?? new Color (255, 255, 255), bg ?? new Color (0, 0)));
+                                          _driver.SetDefaultAttribute (attribute);
                                       });
             }
             catch (Exception ex)
@@ -182,34 +215,70 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
 
         try
         {
-            KittyKeyboardProtocolDetector kittyKeyboardDetector = new (_driver);
+            // Detect Kitty support. The async response we get back only indicates whether
+            // kitty is supported or not.
+            KittyKeyboardProtocolDetector kittyKeyboardDetector = new (_driver, startupGate);
+
             kittyKeyboardDetector.Detect (result =>
-                                         {
-                                             _driver.SetKittyKeyboardProtocol (result);
-                                             Trace.Lifecycle (app?.MainThreadId?.ToString (),
-                                                              "KittyKeyboard",
-                                                              $"Probe complete: Supported={result.IsSupported}, SupportedFlags={result.SupportedFlags}, EnabledFlags={result.EnabledFlags}");
+                                          {
+                                               if (!result.IsSupported)
+                                               {
+                                                   if (_inputProcessor is AnsiInputProcessor unsupportedAnsiInputProcessor)
+                                                   {
+                                                       unsupportedAnsiInputProcessor.SetKittyKeyboardEnabled (false);
+                                                   }
 
-                                             if (!result.IsSupported || result.EnabledFlags <= 0 || _output is not AnsiOutput ansiOutput)
-                                             {
-                                                 Trace.Lifecycle (app?.MainThreadId?.ToString (), "KittyKeyboard", "Kitty keyboard mode not enabled");
-                                                 return;
-                                             }
+                                                   Trace.Lifecycle (app?.MainThreadId?.ToString (), "KittyKeyboard", "Kitty keyboard mode not enabled");
 
-                                             ansiOutput.EnableKittyKeyboard (result.EnabledFlags);
-                                             _driver.SetKittyKeyboardEnabledFlags (ansiOutput.KittyKeyboardEnabledFlags);
-                                             Trace.Lifecycle (app?.MainThreadId?.ToString (),
-                                                              "KittyKeyboard",
-                                                              $"Enabled kitty keyboard flags {ansiOutput.KittyKeyboardEnabledFlags}");
-                                         });
+                                                   return;
+                                               }
+
+                                               // Kitty is supported. Store the capabilities and set the flags we care about.
+                                               _driver?.SetKittyKeyboardCapabilities (result);
+
+                                               if (_inputProcessor is AnsiInputProcessor supportedAnsiInputProcessor)
+                                               {
+                                                   supportedAnsiInputProcessor.SetKittyKeyboardEnabled (true);
+                                               }
+
+                                               kittyKeyboardDetector.Enable (EscSeqUtils.KittyKeyboardRequestedFlags);
+
+                                              Trace.Lifecycle (app?.MainThreadId?.ToString (),
+                                                               "KittyKeyboard",
+                                                               $"Requested kitty keyboard flags {
+                                                                   EscSeqUtils.KittyKeyboardRequestedFlags
+                                                               }; awaiting confirmation");
+                                          });
         }
         catch (Exception ex)
         {
             Logging.Warning ($"Kitty keyboard protocol detection failed: {ex.Message}");
         }
 
+        if (startupGate is { })
+        {
+            QueueDeviceAttributesProbe (startupGate);
+        }
+
         _startupSemaphore.Release ();
-        Logging.Trace ($"app: {app.MainThreadId} Driver: _input: {_input}, _output: {_output}");
+        Trace.Lifecycle (app?.MainThreadId.ToString (), "Driver", $"_input: {_input}, _output: {_output}");
+    }
+
+    private void QueueDeviceAttributesProbe (IAnsiStartupGate startupGate)
+    {
+        IDisposable deviceAttributesQueryCompletionHandle = startupGate.RegisterQuery (AnsiStartupQuery.DeviceAttributesPrimary,
+                                                                                       TimeSpan.FromSeconds (1));
+
+        AnsiEscapeSequenceRequest request = new ()
+        {
+            Request = EscSeqUtils.CSI_SendDeviceAttributes.Request,
+            Value = EscSeqUtils.CSI_SendDeviceAttributes.Value,
+            Terminator = EscSeqUtils.CSI_SendDeviceAttributes.Terminator,
+            ResponseReceived = _ => deviceAttributesQueryCompletionHandle.Dispose (),
+            Abandoned = deviceAttributesQueryCompletionHandle.Dispose
+        };
+
+        _driver?.QueueAnsiRequest (request);
     }
 
     /// <summary>
@@ -255,7 +324,7 @@ internal class MainLoopCoordinator<TInputRecord> : IMainLoopCoordinator where TI
 
         if (_stopCalled)
         {
-            Trace.Lifecycle (app?.MainThreadId.ToString (), "Init", $"Input loop exited cleanly");
+            Trace.Lifecycle (app?.MainThreadId.ToString (), "Init", "Input loop exited cleanly");
         }
         else
         {

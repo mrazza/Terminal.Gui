@@ -21,10 +21,6 @@ public interface IDriver : IDisposable
     /// </summary>
     string? GetName ();
 
-    /// <summary>Returns the name of the driver and relevant library version information.</summary>
-    /// <returns></returns>
-    string GetVersionInfo ();
-
     /// <summary>Suspends the application (e.g. on Linux via SIGTSTP) and upon resume, resets the console driver.</summary>
     /// <remarks>This is only implemented in UnixDriver.</remarks>
     void Suspend ();
@@ -74,6 +70,16 @@ public interface IDriver : IDisposable
     /// <summary>Gets or sets the clipboard.</summary>
     IClipboard? Clipboard { get; set; }
 
+    /// <summary>
+    ///     Gets the terminal progress indicator when direct terminal progress output is available.
+    /// </summary>
+    ProgressIndicator? ProgressIndicator { get; }
+
+    /// <summary>
+    /// Gets the ANSI startup readiness gate, if enabled for this driver instance.
+    /// </summary>
+    IAnsiStartupGate? AnsiStartupGate { get; }
+
     #endregion Driver Components
 
     #region Screen and Display
@@ -106,6 +112,18 @@ public interface IDriver : IDisposable
     /// <summary>The topmost row in the terminal.</summary>
     int Top { get; set; }
 
+    /// <summary>
+    ///     Gets or sets the inline-mode cursor position. Only meaningful when <see cref="AppModel"/>
+    ///     is <see cref="AppModel.Inline"/>. The <c>Y</c> component is the terminal row where
+    ///     the inline region starts; <c>X</c> is reserved for future use.
+    /// </summary>
+    Point InlinePosition { get; set; }
+
+    /// <summary>
+    ///     Gets or sets how the application using this driver interacts with the terminal buffer.
+    /// </summary>
+    AppModel AppModel { get; set; }
+
     #endregion Screen and Display
 
     #region Color Support
@@ -131,6 +149,11 @@ public interface IDriver : IDisposable
     ///     <see langword="null"/> if the terminal did not respond.
     /// </summary>
     Attribute? DefaultAttribute { get; }
+
+    /// <summary>
+    ///     Raised when <see cref="DefaultAttribute"/> changes (e.g. after terminal color detection completes).
+    /// </summary>
+    event EventHandler<ValueChangedEventArgs<Attribute?>>? DefaultAttributeChanged;
 
     /// <summary>
     ///     Gets the terminal's color capabilities as detected from environment variables.
@@ -188,7 +211,8 @@ public interface IDriver : IDisposable
     Attribute CurrentAttribute { get; set; }
 
     /// <summary>
-    ///     Gets or sets the URL that will be associated with cells added via <see cref="AddRune(Rune)"/> or <see cref="AddStr(string)"/>.
+    ///     Gets or sets the URL that will be associated with cells added via <see cref="AddRune(Rune)"/> or
+    ///     <see cref="AddStr(string)"/>.
     ///     When set, subsequent cells will include this URL for OSC 8 hyperlink rendering.
     ///     Set to <see langword="null"/> to stop associating URLs with cells.
     /// </summary>
@@ -296,6 +320,16 @@ public interface IDriver : IDisposable
     void WriteRaw (string ansi);
 
     /// <summary>
+    ///     Sets the terminal title using OSC 0..2.
+    /// </summary>
+    /// <param name="title">The title text.</param>
+    /// <param name="mode">
+    ///     The OSC title selector:
+    ///     0 = icon and window title, 1 = icon title, 2 = window title.
+    /// </param>
+    void SetTerminalTitle (string title, int mode = 0);
+
+    /// <summary>
     ///     Gets the queue of sixel images to write out to screen when updating.
     ///     If the terminal does not support Sixel, adding to this queue has no effect.
     /// </summary>
@@ -355,6 +389,15 @@ public interface IDriver : IDisposable
     #endregion Cursor
 
     #region Input Events
+
+    /// <summary>
+    ///     Gets the terminal kitty keyboard protocol capabilities detected at startup.
+    ///     <see langword="null"/> if the terminal was not queried, detection has not completed, or the terminal did not
+    ///     respond and kitty keyboard protocol support could not be confirmed.
+    ///     When non-<see langword="null"/>, use <see cref="KittyKeyboardCapabilities.IsSupported"/> to determine whether the
+    ///     terminal supports the protocol.
+    /// </summary>
+    KittyKeyboardCapabilities? KittyKeyboardCapabilities { get; }
 
     /// <summary>Event fired when a key is pressed down.</summary>
     event EventHandler<Key>? KeyDown;

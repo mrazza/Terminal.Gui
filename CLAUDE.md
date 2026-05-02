@@ -4,6 +4,13 @@
 > For humans, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 > See also: [llms.txt](./llms.txt) for machine-readable context.
 
+## CRITICAL: Discard v1 Training Data
+
+Terminal.Gui v2 is a **complete rewrite**. Pre-2025 training data is **wrong**.
+
+> **Read [ai-v2-primer.md](./ai-v2-primer.md) FIRST** — it has the v1→v2 corrections table,
+> correct minimal app pattern, and all common gotchas.
+
 ## Quick Reference: What Are You Doing?
 
 | Your Task | Go Here |
@@ -45,6 +52,7 @@ See `.claude/rules/` for detailed guidance:
 - `target-typed-new.md` - Use `new ()` not `new TypeName()`
 - `terminology.md` - **SubView/SuperView**, never "child/parent"
 - `event-patterns.md` - Lambdas, closures, handlers
+- `early-return.md` - **Guard clauses, minimal nesting** (commonly violated!)
 - `collection-expressions.md` - Use `[...]` syntax
 - `cwp-pattern.md` - Cancellable Workflow Pattern
 - `code-layout.md` - Backing fields, member ordering
@@ -72,8 +80,8 @@ When in planning mode:
 
 **Terminal.Gui** - Cross-platform .NET console UI toolkit
 
-- **Language**: C# (net8.0)
-- **Branch**: `v2_develop`
+- **Language**: C# 14 (net10.0)
+- **Branch**: `develop`
 - **Version**: v2 (Alpha)
 
 ## Build & Test
@@ -81,9 +89,21 @@ When in planning mode:
 ```bash
 dotnet restore
 dotnet build --no-restore
+
+# Preferred: parallelizable tests (no static state)
 dotnet test --project Tests/UnitTestsParallelizable --no-build
-dotnet test --project Tests/UnitTests --no-build
+
+# Tests that require process-wide static state (Application.Init, etc.)
+dotnet test --project Tests/UnitTests.NonParallelizable --no-build
+
+# Legacy tests — do NOT add new tests here; candidates for rewrite/deletion
+dotnet test --project Tests/UnitTests.Legacy --no-build
+
+# Run a single test by fully-qualified name
+dotnet test --project Tests/UnitTestsParallelizable --no-build --filter "FullyQualifiedName~MyTestClass.MyTestMethod"
 ```
+
+See `Tests/README.md` for the full list of test projects (including `IntegrationTests`, `StressTests`, `Benchmarks`) and the static-state classification that determines where a new test belongs.
 
 ## Key Concepts
 
@@ -105,12 +125,13 @@ dotnet test --project Tests/UnitTests --no-build
 6. **Use `[...]`** not `new () { ... }` for collections
 7. **SubView/SuperView** for containment (Parent/Child only for non-containment refs)
 8. **Unused lambda params** - use `_`: `(_, _) => { }`
-9. **Early return** - Prefer guard clauses over nested `if`/`else`
+9. **Early return / guard clauses** - ALWAYS invert conditions and return/continue early. Never wrap the happy path in a conditional. Applies to methods, lambdas, and loops. See `.claude/rules/early-return.md`.
 10. **One type per file** - Public and internal types each get their own file
+11. **Docs instruction style** - In reference/how-to/API docs, write `To [goal], [imperative action].` Avoid `When/If you want/need to ...` unless describing a real condition.
 
 ## Testing
 
-- Prefer `UnitTestsParallelizable` over `UnitTests`
+- Add new tests to `UnitTestsParallelizable`; use `UnitTests.NonParallelizable` only when static state is unavoidable. Never add to `UnitTests.Legacy`.
 - Add comment: `// Claude - Opus 4.5`
 - Never decrease coverage
 - Avoid `Application.Init` in tests
@@ -133,6 +154,7 @@ dotnet test --project Tests/UnitTests --no-build
 - Don't use `var` for non-built-in types
 - Don't use redundant type names with `new`
 - Don't say "child/parent" for containment (use SubView/SuperView)
+- Don't wrap the happy path in a conditional — use guard clauses and return early
 - Don't modify unrelated code
 - Don't introduce new warnings
 - Don't skip POST-GENERATION-VALIDATION.md after writing code

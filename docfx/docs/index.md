@@ -1,12 +1,11 @@
 # Terminal.Gui Deep Dives 
 
+![Terminal.Gui — cross-platform TUI toolkit for .NET. Build full-featured terminal UIs with menus, forms, tables, charts, wizards and file dialogs. 30+ views, Windows / macOS / Linux, MIT-licensed.](../images/hero.gif)
+
 > [!IMPORTANT]
-> Terminal.Gui v2 "Beta" has been released.
+> Terminal.Gui v2 has been released
 
 Welcome to the Terminal.Gui documentation! This comprehensive guide covers everything you need to know about building modern terminal user interfaces with Terminal.Gui.
-
-> [!NOTE]
-> This is the v2 API documentation. For v1 go here: https://gui-cs.github.io/Terminal.GuiV1Docs/
 
 ## Getting Started
 
@@ -22,6 +21,7 @@ Welcome to the Terminal.Gui documentation! This comprehensive guide covers every
 - [ANSI Handling](~/docs/ansihandling.md) - Terminal escape sequence parsing, encoding, and state management
 - [Application](~/docs/application.md) - Application lifecycle, initialization, and main loop
 - [Arrangement](~/docs/arrangement.md) - View arrangement and positioning strategies
+- [Borders](~/docs/borders.md) - Border rendering, tab headers, LineCanvas auto-join, and focus-aware styling
 - [Cancellable Work Pattern](~/docs/cancellable-work-pattern.md) - Core design pattern for extensible workflows
 - [Command](~/docs/command.md) - Command execution, key bindings, and the Activating/Accepting concepts
 - [Command Diagrams](~/docs/command-diagrams.md) - Visual diagrams of command flow and processing

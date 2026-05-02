@@ -70,7 +70,7 @@ public class Popover<TView, TResult> : PopoverImpl, IDesignable where TView : Vi
         // Unicode Character 'REPLACEMENT CHARACTER' (U+FFFF) is used to indicate an invalid HotKeySpecifier
         base.HotKeySpecifier = (Rune)'\xffff';
 
-        Border?.Settings &= ~BorderSettings.Title;
+        Border.Settings &= ~BorderSettings.Title;
 
         base.Visible = false;
 
@@ -348,6 +348,19 @@ public class Popover<TView, TResult> : PopoverImpl, IDesignable where TView : Vi
         }
 
         base.OnVisibleChanged (); // PopoverImpl handles Hide
+    }
+
+    /// <inheritdoc />
+    protected override void OnFrameChanged (in Rectangle frame)
+    {
+        base.OnFrameChanged (in frame);
+
+        if (!Visible || Anchor is null || ContentView is null)
+        {
+            return;
+        }
+
+        SetPosition (anchor: Anchor ());
     }
 
     /// <summary>

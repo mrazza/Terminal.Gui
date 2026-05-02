@@ -337,7 +337,7 @@ public class TextValidateField : View, IDesignable, IValue<string>
     /// <inheritdoc/>
     protected override bool OnMouseEvent (Mouse mouse)
     {
-        if (!mouse.Flags.HasFlag (MouseFlags.LeftButtonPressed))
+        if (!mouse.Flags.FastHasFlags (MouseFlags.LeftButtonPressed))
         {
             return false;
         }
@@ -416,6 +416,12 @@ public class TextValidateField : View, IDesignable, IValue<string>
     {
         if (_provider is null)
         {
+            return false;
+        }
+
+        if (key.IsAlt || key.IsCtrl)
+        {
+            // Never insert modified keys
             return false;
         }
 

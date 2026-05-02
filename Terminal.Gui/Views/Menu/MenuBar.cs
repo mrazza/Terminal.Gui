@@ -309,7 +309,7 @@ public class MenuBar : Menu, IDesignable
                                                           ]) { Id = "Preferences" }
                                   },
                                   new Line (),
-                                  new MenuItem { TargetView = targetView as View, Key = Application.GetDefaultKey (Command.Quit), Command = Command.Quit }
+                                  new MenuItem { TargetView = targetView as View, Command = Command.Quit }
                               ]));
 
         Add (new MenuBarItem ("_Edit",
@@ -347,8 +347,8 @@ public class MenuBar : Menu, IDesignable
 
                 foreach (Menu subMenu in mbi.PopoverMenu.Root?.GetAllSubMenus () ?? [])
                 {
-                    subMenu.Border?.Thickness = bordersCb.Value == CheckState.Checked ? new Thickness (1) : new Thickness (0);
-                    subMenu.Border?.LineStyle = bordersCb.Value == CheckState.Checked ? LineStyle.Rounded : LineStyle.None;
+                    subMenu.Border.Thickness = bordersCb.Value == CheckState.Checked ? new Thickness (1) : new Thickness (0);
+                    subMenu.Border.LineStyle = bordersCb.Value == CheckState.Checked ? LineStyle.Rounded : LineStyle.None;
                 }
             }
         }

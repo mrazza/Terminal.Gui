@@ -4,14 +4,14 @@ using System.Reflection;
 namespace UICatalog.Scenarios;
 
 [ScenarioMetadata ("Configuration Editor", "Edits of Terminal.Gui Config Files")]
-[ScenarioCategory ("TabView")]
+[ScenarioCategory ("Tabs")]
 [ScenarioCategory ("Colors")]
 [ScenarioCategory ("Files and IO")]
 [ScenarioCategory ("TextView")]
 [ScenarioCategory ("Configuration")]
 public class ConfigurationEditor : Scenario
 {
-    private TabView? _tabView;
+    private Tabs? _tabs;
     private Shortcut? _lenShortcut;
     private IApplication? _app;
 
@@ -41,14 +41,17 @@ public class ConfigurationEditor : Scenario
 
         StatusBar statusBar = new ([quitShortcut, reloadShortcut, saveShortcut, _lenShortcut]);
 
-        _tabView = new TabView { Width = Dim.Fill (), Height = Dim.Fill (to: statusBar) };
+        _tabs = new Tabs { Width = Dim.Fill (), Height = Dim.Fill (statusBar) };
 
-        win.Add (_tabView, statusBar);
-
-        win.IsModalChanged += (_, _) => { Open (); };
+        win.Add (_tabs, statusBar);
 
         ConfigurationManager.Applied += ConfigurationManagerOnApplied;
+        Open ();
 
+        _tabs.Disposing += (_, _) =>
+                         {
+                             _tabs?.ValueChanged -= OnTabsOnValueChanged;
+                         };
         app.Run (win);
 
         return;
@@ -84,62 +87,75 @@ public class ConfigurationEditor : Scenario
                 editor.Title = "HardCoded";
             }
 
-            Tab tab = new () { View = editor, DisplayText = config.Key.ToString () };
+            View tab = new () { Title = config.Key.ToString () };
+            tab.Add (editor);
 
-            _tabView!.AddTab (tab, false);
+            _tabs?.Add (tab);
 
             editor.Read ();
 
-            editor.ContentsChanged += (_, _) =>
-                                      {
-                                          _lenShortcut!.Title = _lenShortcut!.Title.Replace ("*", "");
+            editor.Disposing += (_, _) =>
+                                {
+                                    editor.ContentsChanged -= OnEditorOnContentsChanged;
+                                };
+            editor.ContentsChanged += OnEditorOnContentsChanged;
 
-                                          if (editor.IsDirty)
-                                          {
-                                              _lenShortcut!.Title += "*";
-                                          }
-                                      };
-
-            _lenShortcut!.Title = $"{editor.Title}";
+            _lenShortcut?.Title = $"{editor.Title}";
         }
 
-        _tabView!.SelectedTabChanged += (_, args) => { _lenShortcut!.Title = $"{args.NewTab.View!.Title}"; };
+        _tabs?.ValueChanged += OnTabsOnValueChanged;
+    }
+
+    private void OnTabsOnValueChanged (object? _, ValueChangedEventArgs<View?> args)
+    {
+        ConfigTextView? editor = args.NewValue?.SubViews.OfType<ConfigTextView> ().FirstOrDefault ();
+
+        if (editor is { })
+        {
+            _lenShortcut!.Title = $"{editor.Title}";
+        }
+    }
+
+    private void OnEditorOnContentsChanged (object? o, ContentsChangedEventArgs contentsChangedEventArgs)
+    {
+        var editor = (ConfigTextView)o!;
+        _lenShortcut?.Title = _lenShortcut.Title.Replace ("*", "");
+
+        if (editor.IsDirty)
+        {
+            _lenShortcut?.Title += "*";
+        }
     }
 
     private void Quit ()
     {
-        foreach (ConfigTextView editor in _tabView!.Tabs.Select (v =>
-                                                                 {
-                                                                     if (v.View is ConfigTextView ctv)
-                                                                     {
-                                                                         return ctv;
-                                                                     }
-
-                                                                     return null;
-                                                                 })
-                                                   .Cast<ConfigTextView> ())
+        foreach (ConfigTextView editor in _tabs?.TabCollection.SelectMany (t => t.SubViews.OfType<ConfigTextView> ()) ?? [])
         {
             if (!editor.IsDirty)
             {
                 continue;
             }
 
-            int? result = MessageBox.Query (editor.App!, "Save Changes", $"Save changes to {editor.FileInfo!.Name}", Strings.btnNo, Strings.btnYes);
+            int? result = MessageBox.Query (editor.App!, "Save Changes", $"Save changes to {editor.FileInfo!.Name}", Strings.btnCancel, Strings.btnNo, Strings.btnYes);
 
             switch (result)
             {
-                case 1:
+                case 2:
                     editor.Save ();
 
                     break;
 
-                case 0:
+                case 1:
                     // user decided not save changes
+                    break;
+
+                case 0:
+                    // Cancel
                     return;
             }
         }
 
-        _tabView?.App?.RequestStop ();
+        _tabs?.App?.RequestStop ();
     }
 
     private void Reload ()
@@ -152,7 +168,11 @@ public class ConfigurationEditor : Scenario
 
     private class ConfigTextView : TextView
     {
-        internal ConfigTextView () => TabStop = TabBehavior.TabGroup;
+        internal ConfigTextView ()
+        {
+            TabStop = TabBehavior.TabGroup;
+            ScrollBars = true;
+        }
 
         internal FileInfo? FileInfo { get; init; }
 
@@ -183,7 +203,6 @@ public class ConfigurationEditor : Scenario
                 using var reader = new StreamReader (stream!);
                 Text = reader.ReadToEnd ();
                 ReadOnly = true;
-                Enabled = true;
 
                 return;
             }
@@ -192,7 +211,6 @@ public class ConfigurationEditor : Scenario
             {
                 Text = ConfigurationManager.GetHardCodedConfig ();
                 ReadOnly = true;
-                Enabled = true;
             }
             else if (FileInfo!.FullName.Contains ("RuntimeConfig"))
             {

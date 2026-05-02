@@ -11,7 +11,7 @@ namespace Terminal.Gui.Views;
 //  HotKey - Do NOT Restore Focus. Advance Active. Do NOT Accept.
 //  Item HotKey - Do NOT Focus item. If item is not active, make Active. Do NOT Accept.
 // Focused:
-//  Space key - If focused item is Active, move focus to and Activate next. Else, Activate current. Do NOT Accept.
+//  Space key - Activate the focused item. Do NOT Accept.
 //  Enter key - Activate and Accept the focused item.
 //  HotKey - Restore Focus. Advance Active. Do NOT Accept.
 //  Item HotKey - If item is not active, make Active. Do NOT Accept. If item is active, do nothing.
@@ -93,23 +93,13 @@ public class OptionSelector : SelectorBase, IDesignable
             return;
         }
 
-        if (GetCheckBoxValue (checkBox) == Value
-            && (ctx?.Routing == CommandRouting.DispatchingDown
-                || (ctx?.Binding is KeyBinding { Key: { } } keyBinding && keyBinding.Key == Key.Space)))
+        if (GetCheckBoxValue (checkBox) == Value)
         {
-            // Caused by Key.Space or a SuperView...
-            // If the checkbox is already checked, we cycle to the next one.
-            Cycle ();
+            // Already selected — no-op regardless of activation source (Space, click, etc.).
+            return;
         }
-        else
-        {
-            if (Value == GetCheckBoxValue (checkBox))
-            {
-                return;
-            }
 
-            Value = GetCheckBoxValue (checkBox);
-        }
+        Value = GetCheckBoxValue (checkBox);
     }
 
     /// <inheritdoc/>
@@ -145,13 +135,40 @@ public class OptionSelector : SelectorBase, IDesignable
     ///     Updates the checked state of all checkbox subviews so that only the checkbox corresponding
     ///     to the current <see cref="SelectorBase.Value"/> is checked.
     /// </summary>
+    /// <remarks>
+    ///     If <see cref="SelectorBase.Value"/> doesn't exist in the list of checkbox values, then the first checkbox will be checked by default
+    ///     and will raise the <see cref="SelectorBase.ValueChanging"/>/<see cref="SelectorBase.ValueChanged"/> events.
+    /// </remarks>
     public override void UpdateChecked ()
     {
+        Dictionary<CheckBox, int> checkBoxValueMap = SubViews.OfType<CheckBox> ().ToDictionary (cb => cb, GetCheckBoxValue);
+
         foreach (CheckBox cb in SubViews.OfType<CheckBox> ())
         {
             int value = GetCheckBoxValue (cb);
 
             cb.Value = value == Value ? CheckState.Checked : CheckState.UnChecked;
+        }
+
+        // If Value doesn't exist in any checkbox, use the first checkbox's value
+        if (Value is not null && checkBoxValueMap.Count > 0 && Values!.All (v => v != Value) && checkBoxValueMap.Values.All (v => v != Value))
+        {
+            Value = checkBoxValueMap.Values.First ();
+
+            foreach (KeyValuePair<CheckBox, int> kvp in checkBoxValueMap)
+            {
+                if (kvp.Value != Value)
+                {
+                    continue;
+                }
+                kvp.Key.Value = CheckState.Checked;
+
+                break;
+            }
+
+            // Sanity checks to verify the assumptions above
+            Debug.Assert (checkBoxValueMap.Values.First () != (int)SubViews.OfType<CheckBox> ().First ().Value);
+            Debug.Assert (checkBoxValueMap.Values.First () == Values! [0]);
         }
 
         // Verify at most one is checked

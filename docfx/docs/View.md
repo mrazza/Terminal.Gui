@@ -82,13 +82,12 @@ See the [Scrolling Deep Dive](scrolling.md) for complete details.
 
 ### Adornments
 
-[Adornments](~/api/Terminal.Gui.ViewBase.Adornment.yml) are special Views that surround the content:
+[Adornments](<xref:Terminal.Gui.ViewBase.IAdornment>) are lightweight objects that define the spacing around a View's content. When View-level features are needed (e.g., SubViews, shadows), a full [AdornmentView](<xref:Terminal.Gui.ViewBase.AdornmentView>) is lazily created via `GetOrCreateView()`:
 
-- **[Margin](~/api/Terminal.Gui.ViewBase.Margin.yml)** - Transparent spacing outside the Border
-- **[Border](~/api/Terminal.Gui.ViewBase.Border.yml)** - Visual frame with [LineStyle](~/api/Terminal.Gui.Drawing.LineStyle.yml), title, and arrangement UI
-- **[Padding](~/api/Terminal.Gui.ViewBase.Padding.yml)** - Spacing inside the Border, outside the Viewport
-
-Each adornment has a [Thickness](~/api/Terminal.Gui.Drawing.Thickness.yml) that defines the width of each side (Top, Right, Bottom, Left).
+- **[Margin](<xref:Terminal.Gui.ViewBase.Margin>)** - Transparent spacing outside the Border
+- **[Border](<xref:Terminal.Gui.ViewBase.Border>)** - Visual frame with [LineStyle](<xref:Terminal.Gui.Drawing.LineStyle>), title, and arrangement UI
+- **[Padding](<xref:Terminal.Gui.ViewBase.Padding>)** - Spacing inside the Border, outside the Viewport
+Each adornment has a [Thickness](<xref:Terminal.Gui.Drawing.Thickness>) that defines the width of each side (Top, Right, Bottom, Left).
 
 See the [Layout Deep Dive](layout.md) for complete details on adornments.
 
@@ -125,11 +124,11 @@ View is organized as a partial class across multiple files, each handling a spec
 
 See the [Command Deep Dive](command.md).
 
-- [View.AddCommand](~/api/Terminal.Gui.ViewBase.View.yml) - Declares commands the View supports
-- [View.InvokeCommand](~/api/Terminal.Gui.ViewBase.View.yml) - Invokes a command
-- [Command](~/api/Terminal.Gui.Input.Command.yml) enum - Standard set of commands (Accept, Activate, HotKey, etc.)
+- [View.AddCommand] - Declares commands the View supports
+- [View.InvokeCommand] - Invokes a command
+- [Command] enum - Standard set of commands (Accept, Activate, HotKey, etc.)
 - `CommandsToBubbleUp` - Opt-in list of commands that bubble from SubViews to this View
-- [View.DispatchDown](~/api/Terminal.Gui.ViewBase.View.yml) - Dispatches a command downward to a SubView with bubbling suppressed (inverse of `TryBubbleToSuperView`)
+- [View.DispatchDown] - Dispatches a command downward to a SubView with bubbling suppressed (inverse of `TryBubbleToSuperView`)
 - `DefaultAcceptView` - The SubView that receives <xref:Terminal.Gui.Input.Command.Accept> when no other SubView handles it
 
 ### Input Handling
@@ -768,11 +767,21 @@ Application.Run (wizard);
 
 ### Shadow Effects
 
-`ShadowStyle` - [ShadowStyle](~/api/Terminal.Gui.ViewBase.ShadowStyle.yml) for drop shadows:
+Shadows are drop-shadow effects rendered by the <xref:Terminal.Gui.ViewBase.Margin>. They are configured via <xref:Terminal.Gui.ViewBase.View.ShadowStyle>:
+
+- **`ShadowStyle.None`** — No shadow (default).
+- **`ShadowStyle.Opaque`** — Draws solid block glyphs (e.g., `▌`, `▀`) along the right and bottom edges. The foreground is black and the background matches whatever is underneath. Best for small views like buttons.
+- **`ShadowStyle.Transparent`** — Preserves the underlying text but darkens the foreground and background colors. Best for larger views like windows and dialogs where obscuring content would be undesirable.
 
 ```csharp
 view.ShadowStyle = ShadowStyle.Transparent;
 ```
+
+When a shadow is enabled, the Margin's <xref:Terminal.Gui.Drawing.Thickness> is automatically increased on the right and bottom to make room for the shadow area. Two internal `ShadowView` instances (one vertical, one horizontal) are added as SubViews of the Margin.
+
+Shadows are drawn in a **second pass** after all views have been drawn (via `Margin.DrawShadows`). This ensures shadows render on top of all other content. Margins without shadows are drawn normally in the first pass. See [Drawing Deep Dive](drawing.md) for details on the two-pass rendering process.
+
+For interactive views, shadows also provide visual feedback on mouse press — the shadow shifts to create a "sunken" 3D button effect.
 
 ---
 

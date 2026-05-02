@@ -16,7 +16,7 @@ public class AllViewsView : View
                            {
                                if (sender is View sendingView)
                                {
-                                   sendingView.SetContentSize (new Size (sendingView.Viewport.Width, sendingView.GetHeightRequiredForSubViews ()));
+                                   sendingView.SetContentHeight (sendingView.GetHeightRequiredForSubViews ());
                                }
                            };
 
@@ -36,7 +36,7 @@ public class AllViewsView : View
         AddCommand (Command.End,
                     () =>
                     {
-                        Viewport = Viewport with { Y = GetContentSize ().Height };
+                        Viewport = Viewport with { Y = GetContentHeight () };
 
                         return true;
                     });
@@ -196,12 +196,13 @@ public class AllViewsView : View
 
         if (!view.Width.Has<DimAuto> (out _))
         {
-            view.Width = Dim.Fill (0, minimumContentDim: 100);
+            view.Width = Dim.Fill (0, 100);
         }
 
         if (!view.Height.Has<DimAuto> (out _))
         {
-            view.Height = Dim.Auto (minimumContentDim: MAX_VIEW_FRAME_HEIGHT - 2, maximumContentDim: MAX_VIEW_FRAME_HEIGHT - view.GetAdornmentsThickness().Vertical);
+            view.Height = Dim.Auto (minimumContentDim: MAX_VIEW_FRAME_HEIGHT - 2,
+                                    maximumContentDim: MAX_VIEW_FRAME_HEIGHT - view.GetAdornmentsThickness ().Vertical);
         }
     }
 }

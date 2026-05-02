@@ -46,16 +46,22 @@ public partial class TextView
     private bool _tabKeyAddsTab = true;
 
     /// <summary>
-    ///     Gets or sets whether the <see cref="TextView"/> inserts a tab character (<c>\t</c>) into the text or ignores tab
-    ///     input. If
-    ///     set to <see langword="false"/> and the user presses the <see cref="Key.Tab"/> the focus will move to the next
-    ///     view.
-    ///     The default is <see langword="true"/> ; if the user presses <see cref="Key.Tab"/>, a tab character will be inserted
-    ///     into the
-    ///     text.
+    ///     Gets or sets whether <see cref="Key.Tab"/> inserts a tab character (<c>\t</c>) into the <see cref="TextView"/>.
     /// </summary>
     /// <remarks>
-    ///     This setting has no effect on shift-<see cref="Key.Tab"/> which always moves the focus to the previous view.
+    ///     <para>
+    ///         Default: <see langword="true"/>
+    ///     </para>
+    ///     <para>
+    ///         If <see cref="TabKeyAddsTab"/> is set to <see langword="true"/>, and the user presses <see cref="Key.Tab"/>,
+    ///         a tab character is inserted at the current cursor position; if Shift+<see cref="Key.Tab"/> is pressed,
+    ///         a tab character is removed from the current cursor position if one exists.
+    ///     </para>
+    ///     <para>
+    ///         If <see cref="TabKeyAddsTab"/> is set to <see langword="false"/>, the <see cref="Key.Tab"/> event and the
+    ///         Shift+<see cref="Key.Tab"/> is bubbled recursively to the up hierarchy. If left unhandled, the app will move
+    ///         focus to the next or previous view.
+    ///     </para>
     /// </remarks>
     public bool TabKeyAddsTab
     {
@@ -136,8 +142,22 @@ public partial class TextView
             return Autocomplete.ProcessKey (a);
         }
 
+        // Never insert modified keys, except for AltGr combinations with associated text of the unmodified key.
+        // This allows users to input characters that require AltGr (e.g. '@' on a Portuguese keyboard which is AltGr+2 with associated text "@"),
+        // while still preventing most modified keys from being inserted into the TextView.
+        if ((a.IsAlt && string.IsNullOrEmpty (a.AsGrapheme)) || a.IsCtrl)
+        {
+            // Never insert modified keys
+            return false;
+        }
+
+        if (a.AsRune is { } rune && rune != default (Rune) && Rune.IsControl (rune))
+        {
+            return false;
+        }
+
         // Ignore control characters and other special keys
-        if (a is { IsKeyCodeAtoZ: false, KeyCode: < KeyCode.Space or > KeyCode.CharMask })
+        if (string.IsNullOrEmpty (a.AsGrapheme) && a is { IsKeyCodeAtoZ: false, KeyCode: < KeyCode.Space or > KeyCode.CharMask })
         {
             return false;
         }

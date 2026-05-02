@@ -2,11 +2,11 @@ name: Build & Run Unit Tests
 
 on:
   push:
-    branches: [ v2_release, v2_develop ]
+    branches: [ main, develop ]
     paths-ignore:
       - '**.md'
   pull_request:
-    branches: [ v2_release, v2_develop ]
+    branches: [ main, develop ]
     paths-ignore:
       - '**.md'
 
@@ -25,10 +25,12 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0 # GitVersion.MsBuild needs full history
 
     - name: Setup .NET Core
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 10.x
         dotnet-quality: 'ga'
@@ -47,23 +49,23 @@ jobs:
         Add-MpPreference -ExclusionPath "${{ github.workspace }}"
         Add-MpPreference -ExclusionProcess "dotnet.exe"
 
-    - name: Run UnitTests
+    - name: Run UnitTests.NonParallelizable
       shell: bash
       run: |
         dotnet test \
-          --project Tests/UnitTests \
+          --project Tests/UnitTests.NonParallelizable \
           --no-build \
           --verbosity normal \
-          --diagnostic --diagnostic-output-directory logs/UnitTests/${{ runner.os }}
+          --diagnostic --diagnostic-output-directory logs/UnitTests.NonParallelizable/${{ runner.os }}
 
     - name: Upload Test Logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: non_parallel_unittests-logs-${{ runner.os }}
         path: |
-          logs/UnitTests/
-          Tests/UnitTests/logs/
+          logs/UnitTests.NonParallelizable/
+          Tests/UnitTests.NonParallelizable/logs/
           TestResults/
           **/*.dmp
         if-no-files-found: ignore
@@ -83,10 +85,12 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0 # GitVersion.MsBuild needs full history
 
     - name: Setup .NET Core
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 10.x
         dotnet-quality: 'ga'
@@ -119,7 +123,7 @@ jobs:
 
     - name: Upload UnitTestsParallelizable Logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: parallel_unittests-logs-${{ runner.os }}
         path: |

@@ -30,7 +30,8 @@ public class Runnable : View, IRunnable
         Arrangement = ViewArrangement.Overlapped;
         Width = Dim.Fill ();
         Height = Dim.Fill ();
-        SchemeName = SchemeManager.SchemesToSchemeName (Schemes.Runnable);
+        SchemeName = SchemeManager.SchemesToSchemeName (Schemes.Base);
+        Border.Settings |= BorderSettings.TerminalTitle;
     }
 
     /// <inheritdoc/>
@@ -168,6 +169,12 @@ public class Runnable : View, IRunnable
     {
         if (newIsModal)
         {
+            if (App?.AppModel == AppModel.Inline && Height.Has (out DimFill _))
+            {
+                // If starting inline and height is Dim.Fill, change to Dim.Auto to avoid full screen
+                Height = Dim.Auto ();
+            }
+
             // Set focus to self if becoming modal
             SetFocus ();
             App?.Navigation?.SetFocused (Focused);
