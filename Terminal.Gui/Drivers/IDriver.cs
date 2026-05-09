@@ -336,6 +336,16 @@ public interface IDriver : IDisposable
     ConcurrentQueue<SixelToRender> GetSixels ();
 
     /// <summary>
+    /// Gets the collection of sixel images managed by the driver.
+    /// </summary>
+    ConcurrentDictionary<string, SixelToRender> SixelImages { get; }
+
+    /// <summary>
+    ///     Gets the sixel support information for the driver.
+    /// </summary>
+    Terminal.Gui.Drawing.SixelSupportResult SixelSupport { get; }
+
+    /// <summary>
     ///     Gets a string representation of <see cref="Contents"/>.
     /// </summary>
     /// <returns></returns>

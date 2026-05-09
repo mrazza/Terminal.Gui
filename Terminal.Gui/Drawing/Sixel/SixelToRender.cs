@@ -21,4 +21,9 @@ public class SixelToRender
     /// Gets or sets the unique identifier for this sixel render operation.
     /// </summary>
     public string? Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this sixel image needs to be re-sent to the terminal.
+    /// </summary>
+    public bool IsDirty { get; set; } = true;
 }

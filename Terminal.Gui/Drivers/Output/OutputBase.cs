@@ -52,6 +52,12 @@ public abstract class OutputBase
     /// <inheritdoc cref="IOutput.GetSixels"/>
     public ConcurrentQueue<SixelToRender> GetSixels () => _sixels;
 
+    /// <inheritdoc cref="IOutput.SixelImages"/>
+    public ConcurrentDictionary<string, SixelToRender> SixelImages { get; } = new ();
+
+    /// <inheritdoc cref="IOutput.SixelSupport"/>
+    public Terminal.Gui.Drawing.SixelSupportResult SixelSupport { get; } = new ();
+
     // Last text style used, for updating style with EscSeqUtils.CSI_AppendTextStyleChange().
     private TextStyle _redrawTextStyle = TextStyle.None;
 
@@ -202,7 +208,22 @@ public abstract class OutputBase
             return;
         }
 
-        // Render queued sixel images
+        // Render managed sixel images
+        foreach (KeyValuePair<string, SixelToRender> kvp in SixelImages)
+        {
+            SixelToRender s = kvp.Value;
+
+            if (string.IsNullOrWhiteSpace (s.SixelData) || !s.IsDirty)
+            {
+                continue;
+            }
+
+            SetCursorPositionImpl (s.ScreenPosition.X, s.ScreenPosition.Y);
+            Write (new StringBuilder (s.SixelData));
+            s.IsDirty = false;
+        }
+
+        // Render queued sixel images (legacy behavior for one-offs)
         foreach (SixelToRender s in GetSixels ())
         {
             if (string.IsNullOrWhiteSpace (s.SixelData))

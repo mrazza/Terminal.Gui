@@ -12,9 +12,9 @@ namespace UICatalog.Scenarios;
 [ScenarioCategory ("Drawing")]
 public class Images : Scenario
 {
-    private ImageView _imageView;
-    private Point _screenLocationForSixel;
-    private string _encodedSixelData;
+    private Terminal.Gui.Views.ImageView _imageView;
+    
+    
     private Window _win;
 
     /// <summary>
@@ -42,17 +42,17 @@ public class Images : Scenario
     /// <summary>
     ///     The view into which the currently opened sixel image is bounded
     /// </summary>
-    private View _sixelView;
+    private Terminal.Gui.Views.ImageView _sixelView;
 
     private DoomFire _fire;
-    private SixelEncoder _fireEncoder;
-    private SixelToRender _fireSixel;
+    
+    private Terminal.Gui.Views.ImageView _fireImageView;
     private int _fireFrameCounter;
     private bool _isDisposed;
     private OptionSelector _osPaletteBuilder;
     private OptionSelector _osDistanceAlgorithm;
     private NumericUpDown _popularityThreshold;
-    private SixelToRender _sixelImage;
+    
 
     // Start by assuming no support
     private SixelSupportResult _sixelSupportResult = new ();
@@ -172,29 +172,6 @@ public class Images : Scenario
         }
 
         _winSize = e.OldContentSize;
-
-        if (_fireSixel is { })
-        {
-            SixelToRender sixelToRender = null;
-            _app.Driver?.GetOutput ().GetSixels ().TryDequeue (out sixelToRender);
-
-            if (sixelToRender is { Id: "sixelImage" })
-            {
-                _app.Driver?.GetOutput ().GetSixels ().Enqueue (_sixelImage);
-
-                if (_app.Driver?.GetOutput ().GetSixels ().Count > 1)
-                {
-                    _app.Driver?.GetOutput ().GetSixels ().TryDequeue (out _);
-                }
-            }
-
-            GenerateSixelFire (false);
-
-            if (!string.IsNullOrEmpty (_fireSixel.SixelData))
-            {
-                _app.Driver?.GetOutput ().GetSixels ().Enqueue (_fireSixel);
-            }
-        }
     }
 
     private void UpdateSixelSupportState (SixelSupportResult newResult)
@@ -240,10 +217,20 @@ public class Images : Scenario
 
     private void GenerateSixelFire (bool addTimeout)
     {
+        if (_fireImageView == null) {
+            _fireImageView = new Terminal.Gui.Views.ImageView {
+                Width = Dim.Fill(),
+                Height = Dim.Fill(),
+                Id = "fireSixel"
+            };
+            _win.Add(_fireImageView);
+            _win.MoveSubViewToStart(_fireImageView);
+        }
+
         _fire = new DoomFire (_win.Frame.Width * _pxX.Value, _win.Frame.Height * _pxY.Value);
-        _fireEncoder = new SixelEncoder { AvoidBottomScroll = true };
-        _fireEncoder.Quantizer.MaxColors = Math.Min (_fireEncoder.Quantizer.MaxColors, _sixelSupportResult.MaxPaletteColors);
-        _fireEncoder.Quantizer.PaletteBuildingAlgorithm = new ConstPalette (_fire.Palette);
+        _fireImageView.SixelEncoder.AvoidBottomScroll = true;
+        _fireImageView.SixelEncoder.Quantizer.MaxColors = Math.Min (_fireImageView.SixelEncoder.Quantizer.MaxColors, _sixelSupportResult.MaxPaletteColors);
+        _fireImageView.SixelEncoder.Quantizer.PaletteBuildingAlgorithm = new ConstPalette (_fire.Palette);
 
         _fireFrameCounter = 0;
 
@@ -258,33 +245,12 @@ public class Images : Scenario
         _fire.AdvanceFrame ();
         _fireFrameCounter++;
 
-        // Control frame rate by adjusting this
-        // Lower number means more FPS
         if (_fireFrameCounter % 2 != 0 || _isDisposed)
         {
             return !_isDisposed;
         }
 
-        Color [,] bmp = _fire.GetFirePixels ();
-
-        // TODO: Static way of doing this, suboptimal
-        // ConcurrentQueue doesn't support Remove, so we update the existing object
-        string sixelFireData = _fireEncoder.EncodeSixel (bmp);
-
-        if (_fireSixel == null)
-        {
-            _fireSixel = new SixelToRender { SixelData = sixelFireData, ScreenPosition = new Point (0, 0), Id = "fireSixel" };
-
-            _app.Driver?.GetOutput ().GetSixels ().Enqueue (_fireSixel);
-        }
-        else
-        {
-            _fireSixel.SixelData = sixelFireData;
-            _fireSixel.ScreenPosition = new Point (0, 0);
-        }
-
-        _win.SetNeedsDraw ();
-
+        _fireImageView.Source = _fire.GetFirePixels ();
         return !_isDisposed;
     }
 
@@ -339,7 +305,7 @@ public class Images : Scenario
             return;
         }
 
-        _imageView.SetImage (img);
+        _imageView.Source = ConvertToColorArray (img);
         ApplyShowTabViewHack ();
         _app?.LayoutAndDraw ();
     }
@@ -351,7 +317,7 @@ public class Images : Scenario
 
     private void BuildBasicTab (View tabBasic)
     {
-        _imageView = new ImageView
+        _imageView = new Terminal.Gui.Views.ImageView
         {
             Width = Dim.Fill (),
             Height = Dim.Fill (),
@@ -387,7 +353,7 @@ public class Images : Scenario
                                     VerticalTextAlignment = Alignment.Center
                                 });
 
-        _sixelView = new View
+        _sixelView = new Terminal.Gui.Views.ImageView
         {
             Width = Dim.Percent (50),
             Height = Dim.Fill (),
@@ -521,29 +487,6 @@ public class Images : Scenario
         }
 
         _sixelImageSize = e.OldContentSize;
-
-        if (_sixelImage is { })
-        {
-            SixelToRender sixelToRender = null;
-            _app.Driver?.GetOutput ().GetSixels ().TryDequeue (out sixelToRender);
-
-            if (sixelToRender is { Id: "fireSixel" })
-            {
-                _app.Driver?.GetOutput ().GetSixels ().Enqueue (_fireSixel);
-
-                if (_app.Driver?.GetOutput ().GetSixels ().Count > 1)
-                {
-                    _app.Driver?.GetOutput ().GetSixels ().TryDequeue (out _);
-                }
-            }
-
-            GenerateSixelImage (false);
-
-            if (!string.IsNullOrEmpty (_sixelImage.SixelData))
-            {
-                _app.Driver?.GetOutput ().GetSixels ().Enqueue (_sixelImage);
-            }
-        }
     }
 
     private IPaletteBuilder GetPaletteBuilder ()
@@ -568,7 +511,7 @@ public class Images : Scenario
 
     private void OutputSixelButtonClick (object sender, CommandEventArgs e)
     {
-        if (_imageView.FullResImage == null)
+        if (_imageView.Source == null)
         {
             MessageBox.Query (_app!, "No Image Loaded", "You must first open an image.  Use the 'Open Image' button above.", "Ok");
 
@@ -582,27 +525,25 @@ public class Images : Scenario
 
     private void GenerateSixelImage (bool openDialog)
     {
-        _screenLocationForSixel = _sixelView.ViewportToScreen ().Location;
+        if (_imageView.Source == null) return;
+        
+        _sixelView.SixelEncoder.Quantizer.MaxColors = Math.Min (_sixelView.SixelEncoder.Quantizer.MaxColors, _sixelSupportResult.MaxPaletteColors);
+        _sixelView.SixelEncoder.Quantizer.PaletteBuildingAlgorithm = GetPaletteBuilder ();
+        _sixelView.SixelEncoder.Quantizer.DistanceAlgorithm = GetDistanceAlgorithm ();
 
-        _encodedSixelData = GenerateSixelData (_imageView.FullResImage,
-                                               _sixelView.Viewport.Size,
-                                               _pxX.Value,
-                                               _pxY.Value,
-                                               openDialog);
-
-        if (_sixelImage == null)
+        _sixelView.Source = _imageView.Source;
+        
+        if (openDialog)
         {
-            _sixelImage = new SixelToRender { SixelData = _encodedSixelData, ScreenPosition = _screenLocationForSixel, Id = "sixelImage"};
-
-            _app.Driver?.GetOutput ().GetSixels ().Enqueue (_sixelImage);
+            // We need to re-encode once to get the palette for the dialog
+            // or just use the encoder from the view after it has drawn.
+            // For simplicity in the demo, we'll just show the palette if we have it.
+            PaletteView pv = new (_sixelView.SixelEncoder.Quantizer.Palette.ToList ());
+            Dialog dlg = new () { Title = "Palette", Buttons = [new Button { Title = Strings.btnOk }] };
+            dlg.Add (pv);
+            _app?.Run (dlg);
+            dlg.Dispose ();
         }
-        else
-        {
-            _sixelImage.ScreenPosition = _screenLocationForSixel;
-            _sixelImage.SixelData = _encodedSixelData;
-        }
-
-        _sixelView.SetNeedsDraw ();
     }
 
     //private void SixelViewOnDrawingContent (object sender, DrawEventArgs e)
@@ -696,55 +637,6 @@ public class Images : Scenario
         }
 
         return colors;
-    }
-
-    private class ImageView : View
-    {
-        private readonly ConcurrentDictionary<Rgba32, Attribute> _cache = new ();
-        public Image<Rgba32> FullResImage;
-        private Image<Rgba32> _matchSize;
-
-        protected override bool OnDrawingContent (DrawContext context)
-        {
-            if (FullResImage == null)
-            {
-                return true;
-            }
-
-            // if we have not got a cached resized image of this size
-            if (_matchSize == null || Viewport.Width != _matchSize.Width || Viewport.Height != _matchSize.Height)
-            {
-                // generate one
-                _matchSize = FullResImage.Clone (x => x.Resize (Viewport.Width, Viewport.Height));
-            }
-
-            for (int y = 0; y < Viewport.Height; y++)
-            {
-                for (int x = 0; x < Viewport.Width; x++)
-                {
-                    Rgba32 rgb = _matchSize [x, y];
-
-                    Attribute attr = _cache.GetOrAdd (
-                                                      rgb,
-                                                      rgba32 => new Attribute (
-                                                                               new Color (),
-                                                                               new Color (rgba32.R, rgba32.G, rgba32.B)
-                                                                              )
-                                                     );
-
-                    SetAttribute (attr);
-                    AddRune (x, y, (Rune)' ');
-                }
-            }
-
-            return true;
-        }
-
-        internal void SetImage (Image<Rgba32> image)
-        {
-            FullResImage = image;
-            SetNeedsDraw ();
-        }
     }
 
     public class PaletteView : View
