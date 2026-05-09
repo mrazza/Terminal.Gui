@@ -18,6 +18,14 @@ public interface IOutput : IDisposable
     ConcurrentQueue<SixelToRender> GetSixels ();
 
     /// <summary>
+    /// Gets the collection of sixel images managed by the output.
+    /// </summary>
+    ConcurrentDictionary<string, SixelToRender> SixelImages { get; }
+
+    /// <seealso cref="IDriver.SixelSupport"/>
+    Terminal.Gui.Drawing.SixelSupportResult SixelSupport { get; }
+
+    /// <summary>
     ///     Returns the current size of the console in rows/columns (i.e.
     ///     of characters not pixels).
     /// </summary>

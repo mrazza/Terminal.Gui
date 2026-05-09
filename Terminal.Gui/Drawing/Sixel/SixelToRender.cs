@@ -1,4 +1,4 @@
-﻿namespace Terminal.Gui.Drawing;
+namespace Terminal.Gui.Drawing;
 
 /// <summary>
 ///     Describes a request to render a given <see cref="SixelData"/> at a given <see cref="ScreenPosition"/>.
@@ -21,4 +21,9 @@ public class SixelToRender
     /// Gets or sets the unique identifier for this sixel render operation.
     /// </summary>
     public string? Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this sixel image needs to be re-sent to the terminal.
+    /// </summary>
+    public bool IsDirty { get; set; } = true;
 }

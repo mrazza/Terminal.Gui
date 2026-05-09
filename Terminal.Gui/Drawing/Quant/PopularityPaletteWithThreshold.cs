@@ -47,8 +47,12 @@ public class PopularityPaletteWithThreshold : IPaletteBuilder
             return colorHistogram.Keys.ToList ();
         }
 
-        // Step 2: Merge similar colors using the color distance threshold
-        Dictionary<Color, int> mergedHistogram = MergeSimilarColors (colorHistogram, maxColors);
+        // Step 2: If we still have too many colors, merge them
+        Dictionary<Color, int> mergedHistogram = colorHistogram;
+        if (mergedHistogram.Count > maxColors * 2)
+        {
+             mergedHistogram = MergeSimilarColors (colorHistogram, maxColors);
+        }
 
         // Step 3: Sort the histogram by frequency (most frequent colors first)
         List<Color> sortedColors = mergedHistogram.OrderByDescending (c => c.Value)

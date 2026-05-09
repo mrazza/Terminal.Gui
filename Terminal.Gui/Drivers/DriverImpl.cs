@@ -398,6 +398,12 @@ internal class DriverImpl : IDriver
     public ConcurrentQueue<SixelToRender> GetSixels () => _output.GetSixels ();
 
     /// <inheritdoc/>
+    public ConcurrentDictionary<string, SixelToRender> SixelImages => _output.SixelImages;
+
+    /// <inheritdoc/>
+    public Terminal.Gui.Drawing.SixelSupportResult SixelSupport => _output.SixelSupport;
+
+    /// <inheritdoc/>
     public new string ToString ()
     {
         StringBuilder sb = new ();
