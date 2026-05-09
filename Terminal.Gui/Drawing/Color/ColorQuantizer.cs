@@ -39,20 +39,29 @@ public class ColorQuantizer
     /// <param name="pixels"></param>
     public void BuildPalette (Color [,] pixels)
     {
-        List<Color> allColors = [];
         int width = pixels.GetLength (0);
         int height = pixels.GetLength (1);
 
-        for (var x = 0; x < width; x++)
+        // Optimization: If the total number of pixels is large, sample the image instead of using all colors
+        // to build the palette. This prevents O(N*M) explosions in palette builders.
+        const int maxSamplePixels = 10000;
+        List<Color> sampleColors = [];
+        
+        int totalPixels = width * height;
+        int step = Math.Max(1, totalPixels / maxSamplePixels);
+
+        for (int i = 0; i < totalPixels; i += step)
         {
-            for (var y = 0; y < height; y++)
+            int x = i % width;
+            int y = i / width;
+            if (y < height)
             {
-                allColors.Add (pixels [x, y]);
+                sampleColors.Add(pixels[x, y]);
             }
         }
 
         _nearestColorCache.Clear ();
-        Palette = PaletteBuildingAlgorithm.BuildPalette (allColors, MaxColors);
+        Palette = PaletteBuildingAlgorithm.BuildPalette (sampleColors, MaxColors);
     }
 
     /// <summary>

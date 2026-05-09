@@ -18,9 +18,10 @@ public abstract class OutputBase
     protected bool IsAttachedToTerminal { get; }
 
     /// <inheritdoc cref="IOutput.Force16Colors"/>
+    private bool _force16Colors;
     public bool Force16Colors
     {
-        get;
+        get => _force16Colors;
         set
         {
             if (IsLegacyConsole && !value)
@@ -28,17 +29,18 @@ public abstract class OutputBase
                 return;
             }
 
-            field = value;
+            _force16Colors = value;
         }
     }
 
     /// <inheritdoc cref="IOutput.IsLegacyConsole"/>
+    private bool _isLegacyConsole;
     public bool IsLegacyConsole
     {
-        get;
+        get => _isLegacyConsole;
         set
         {
-            field = value;
+            _isLegacyConsole = value;
 
             if (value) // If legacy console (true), force 16 colors
             {
