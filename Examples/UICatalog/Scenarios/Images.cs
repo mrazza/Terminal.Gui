@@ -161,6 +161,7 @@ public class Images : Scenario
     private void Win_SubViewsLaidOut (object sender, LayoutEventArgs e)
     {
         // Use driver-level sixel support detection (detected during driver initialization)
+        _app?.Driver?.SixelSupportChanged += (_, args) => UpdateSixelSupportState (args.NewValue);
         if (_app?.Driver?.SixelSupport is { } support)
         {
             UpdateSixelSupportState (support);
