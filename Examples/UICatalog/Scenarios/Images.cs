@@ -559,7 +559,7 @@ public class Images : Scenario
         _sixelView.SixelEncoder = encoder;
 
         Size targetSize = _sixelView.FitImageInViewportInPixels (new Size (_fullResImage.Width, _fullResImage.Height));
-        using var resized = _fullResImage.Clone (i => i.Resize (targetSize.Width, targetSize.Height));
+        using Image<Rgba32> resized = _fullResImage.Clone (i => i.Resize (targetSize.Width, targetSize.Height));
         _sixelView.Image = ConvertToColorArray (resized);
 
         if (openDialog)
