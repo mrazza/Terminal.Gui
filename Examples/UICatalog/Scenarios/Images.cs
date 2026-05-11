@@ -160,10 +160,10 @@ public class Images : Scenario
 
     private void Win_SubViewsLaidOut (object sender, LayoutEventArgs e)
     {
-        // // Use driver-level sixel support detection (detected during driver initialization)
-        if (_app?.Driver?.SixelSupport is { IsSupported: true })
+        // Use driver-level sixel support detection (detected during driver initialization)
+        if (_app?.Driver?.SixelSupport is { } support)
         {
-            UpdateSixelSupportState (_app.Driver.SixelSupport);
+            UpdateSixelSupportState (support);
         }
 
         if (_winSize == e.OldContentSize)
@@ -175,17 +175,7 @@ public class Images : Scenario
 
         if (_fireSixel is { })
         {
-            SixelToRender sixelToRender = null;
-            _app.Driver?.GetOutput ().GetSixels ().TryDequeue (out sixelToRender);
-
-
-
             GenerateSixelFire (false);
-
-            if (!string.IsNullOrEmpty (_fireSixel.SixelData))
-            {
-                _app.Driver?.GetOutput ().GetSixels ().Enqueue (_fireSixel);
-            }
         }
     }
 
@@ -196,6 +186,7 @@ public class Images : Scenario
         _cbSupportsSixel.Value = newResult.IsSupported ? CheckState.Checked : CheckState.UnChecked;
         _pxX.Value = _sixelSupportResult.Resolution.Width;
         _pxY.Value = _sixelSupportResult.Resolution.Height;
+        SetupSixelSupported (newResult.IsSupported);
     }
 
     private void SetupSixelSupported (bool isSupported)
@@ -286,6 +277,7 @@ public class Images : Scenario
     {
         base.Dispose (disposing);
         _imageView.Dispose ();
+        _fullResImage?.Dispose ();
         _sixelNotSupported.Dispose ();
         _sixelSupported.Dispose ();
         _isDisposed = true;
@@ -332,6 +324,7 @@ public class Images : Scenario
             return;
         }
 
+        _fullResImage?.Dispose ();
         _fullResImage = img;
         _imageView.Image = ConvertToColorArray (img);
         ApplyShowTabViewHack ();
@@ -564,7 +557,8 @@ public class Images : Scenario
         _sixelView.SixelEncoder = encoder;
 
         Size targetSize = _sixelView.FitImageInViewportInPixels (new Size (_fullResImage.Width, _fullResImage.Height));
-        _sixelView.Image = ConvertToColorArray (_fullResImage.Clone (i => i.Resize (targetSize.Width, targetSize.Height)));
+        using var resized = _fullResImage.Clone (i => i.Resize (targetSize.Width, targetSize.Height));
+        _sixelView.Image = ConvertToColorArray (resized);
 
         if (openDialog)
         {
