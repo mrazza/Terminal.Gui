@@ -256,7 +256,7 @@ public class Images : Scenario
 
         if (_fireSixel == null)
         {
-            _fireSixel = new SixelToRender { SixelData = sixelFireData, ScreenPosition = new Point (0, 0), Id = "fireSixel", IsDirty = true };
+            _fireSixel = new SixelToRender { SixelData = sixelFireData, ScreenPosition = new Point (0, 0), Id = "fireSixel", AlwaysRender = true };
 
             _app.Driver?.GetOutput ().GetSixels ().Enqueue (_fireSixel);
         }
@@ -264,7 +264,6 @@ public class Images : Scenario
         {
             _fireSixel.SixelData = sixelFireData;
             _fireSixel.ScreenPosition = new Point (0, 0);
-            _fireSixel.IsDirty = true;
         }
 
         _win.SetNeedsDraw ();
@@ -544,8 +543,10 @@ public class Images : Scenario
         }
 
         _sixelImageSize = _sixelView.Viewport.Size;
+        _sixelView.Visible = false;
 
         GenerateSixelImage (true);
+        _sixelView.Visible = true;
     }
 
     private void GenerateSixelImage (bool openDialog)

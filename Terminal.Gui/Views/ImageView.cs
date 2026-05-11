@@ -143,19 +143,13 @@ public class ImageView : View, IDesignable
             return Size.Empty;
         }
 
-        // Calculate aspect-ratio-preserving size using integer arithmetic
-        int newWidth, newHeight;
+        // Calculate aspect-ratio-preserving size
+        double widthScale = (double)viewportInPixels.Width / imageSize.Width;
+        double heightScale = (double)viewportInPixels.Height / imageSize.Height;
+        double scale = Math.Min (widthScale, heightScale);
 
-        if ((long)viewportInPixels.Width * imageSize.Height < (long)viewportInPixels.Height * imageSize.Width)
-        {
-            newWidth = viewportInPixels.Width;
-            newHeight = Math.Max (1, (int)((long)viewportInPixels.Width * imageSize.Height / imageSize.Width));
-        }
-        else
-        {
-            newHeight = viewportInPixels.Height;
-            newWidth = Math.Max (1, (int)((long)viewportInPixels.Height * imageSize.Width / imageSize.Height));
-        }
+        int newWidth = Math.Max (1, (int)(imageSize.Width * scale));
+        int newHeight = Math.Max (1, (int)(imageSize.Height * scale));
 
         return new Size (newWidth, newHeight);
     }
@@ -268,23 +262,13 @@ public class ImageView : View, IDesignable
 
     private void UpdateSixelData ()
     {
-        if (!IsUsingSixel)
-        {
-            return;
-        }
-
-        SixelSupportResult? support = App?.Driver?.SixelSupport;
-
-        if (support is null)
+        if (!IsUsingSixel || App?.Driver?.SixelSupport is not { } support)
         {
             return;
         }
 
         // Use caller-provided encoder or create a default one
-        if (SixelEncoder is null)
-        {
-            SixelEncoder = new SixelEncoder ();
-        }
+        SixelEncoder ??= new SixelEncoder ();
 
         // Clamp MaxColors regardless of whether the encoder was provided
         SixelEncoder.Quantizer.MaxColors = Math.Min (SixelEncoder.Quantizer.MaxColors, support.MaxPaletteColors);
@@ -325,45 +309,25 @@ public class ImageView : View, IDesignable
             return null;
         }
 
-        // Calculate aspect-ratio-preserving size using integer arithmetic
-        int newWidth, newHeight;
+        // Calculate aspect-ratio-preserving size
+        double widthScale = (double)targetWidth / srcWidth;
+        double heightScale = (double)targetHeight / srcHeight;
+        double scale = Math.Min (widthScale, heightScale);
 
-        if ((long)targetWidth * srcHeight < (long)targetHeight * srcWidth)
+        int newWidth = Math.Max (1, (int)(srcWidth * scale));
+        int newHeight = Math.Max (1, (int)(srcHeight * scale));
+
+        // We can start with the input image, maybe it's the correct size already
+        if (_scaledImage is null)
         {
-            newWidth = targetWidth;
-            newHeight = Math.Max (1, (int)((long)targetWidth * srcHeight / srcWidth));
-        }
-        else
-        {
-            newHeight = targetHeight;
-            newWidth = Math.Max (1, (int)((long)targetHeight * srcWidth / srcHeight));
+            _scaledImage = _image;
         }
 
         // Nearest-neighbor scale
         if (_scaledImage is null || _scaledImage.GetLength (0) != newWidth || _scaledImage.GetLength (1) != newHeight)
         {
             _scaledImage = new Color [newWidth, newHeight];
-
-            // Use ArrayPool for intermediate scaling buffer to reduce GC pressure
-            Color [] poolArray = ArrayPool<Color>.Shared.Rent (newWidth * newHeight);
-
-            try
-            {
-                ScaleNearestNeighbor (_image, poolArray, newWidth, newHeight);
-
-                // Copy from pool array to 2D array
-                for (int y = 0; y < newHeight; y++)
-                {
-                    for (int x = 0; x < newWidth; x++)
-                    {
-                        _scaledImage [x, y] = poolArray [y * newWidth + x];
-                    }
-                }
-            }
-            finally
-            {
-                ArrayPool<Color>.Shared.Return (poolArray);
-            }
+            ScaleNearestNeighbor (_image, _scaledImage);
         }
 
         return _scaledImage;
@@ -389,23 +353,6 @@ public class ImageView : View, IDesignable
             {
                 int srcX = Math.Min (x * srcWidth / newWidth, srcWidth - 1);
                 destination [x, y] = source [srcX, srcY];
-            }
-        }
-    }
-
-    private static void ScaleNearestNeighbor (Color [,] source, Color [] destination, int newWidth, int newHeight)
-    {
-        int srcWidth = source.GetLength (0);
-        int srcHeight = source.GetLength (1);
-
-        for (int y = 0; y < newHeight; y++)
-        {
-            int srcY = Math.Min (y * srcHeight / newHeight, srcHeight - 1);
-
-            for (int x = 0; x < newWidth; x++)
-            {
-                int srcX = Math.Min (x * srcWidth / newWidth, srcWidth - 1);
-                destination [y * newWidth + x] = source [srcX, srcY];
             }
         }
     }

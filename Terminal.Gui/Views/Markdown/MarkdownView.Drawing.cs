@@ -312,7 +312,7 @@ public partial class Markdown
             return;
         }
 
-        var queueId = `${imageSource}:${viewPosition.X}:${viewPosition.Y}`;
+        var queueId = $"{imageSource}:{viewPosition.X}:{viewPosition.Y}";
 
         if (!_visibleSixelIds.Add (queueId))
         {
