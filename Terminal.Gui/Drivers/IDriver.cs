@@ -134,7 +134,7 @@ public interface IDriver : IDisposable
     /// <remarks>
     ///     <see langword="null"/> if detection has not been performed.
     /// </remarks>
-    SixelSupportResult? SixelSupport => null;
+    SixelSupportResult? SixelSupport { get; }
 
     /// <summary>Gets whether the <see cref="IDriver"/> supports TrueColor output.</summary>
     bool SupportsTrueColor { get; }
